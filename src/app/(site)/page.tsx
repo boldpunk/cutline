@@ -70,12 +70,12 @@ export default async function HomePage() {
             <img src={hero} alt="" className="aspect-[4/5] w-full rounded-2xl object-cover" />
           ) : (
             <div className="relative overflow-hidden rounded-2xl border border-paper/15 bg-surface p-6 sm:p-8">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-dark">Прайс</p>
-              <ul className="mt-4 divide-y divide-paper/15">
+              <p className="relative text-xs font-semibold uppercase tracking-[0.2em] text-muted-dark">Прайс</p>
+              <ul className="relative mt-4 divide-y divide-paper/15 pr-2">
                 {catalog.services.slice(0, 5).map((s) => (
-                  <li key={s.id} className="flex items-baseline justify-between gap-4 py-3">
+                  <li key={s.id} className="flex flex-col gap-1 py-3 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4">
                     <span className="display text-2xl sm:text-3xl">{s.name}</span>
-                    <span className="shrink-0 text-right font-semibold text-accent tabular-nums">
+                    <span className="font-semibold text-accent tabular-nums sm:shrink-0 sm:text-right">
                       {s.minPrice === s.maxPrice ? formatUzs(s.minPrice) : `${formatUzs(s.minPrice)} – ${formatUzs(s.maxPrice)}`}
                     </span>
                   </li>
@@ -84,7 +84,7 @@ export default async function HomePage() {
               {catalog.services.some((s) => s.minPrice !== s.maxPrice) && (
                 <p className="mt-3 text-xs text-muted-dark">Диапазон — цена зависит от мастера; точная сумма видна до подтверждения записи.</p>
               )}
-              <div aria-hidden className="pointer-events-none absolute -right-10 -bottom-10 h-40 w-40 rounded-full border-[18px] border-accent/80" />
+              <div aria-hidden className="pointer-events-none absolute -right-14 -top-14 h-36 w-36 rounded-full border-[16px] border-accent/70" />
             </div>
           )}
         </div>

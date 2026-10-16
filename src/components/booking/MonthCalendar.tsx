@@ -10,6 +10,8 @@ const STATUS_TEXT: Record<DayStatus, string> = {
   closed: "выходной",
   out_of_range: "",
 };
+// Short visible captions that fit a 360px-wide grid; screen readers get STATUS_TEXT.
+const STATUS_SHORT: Record<DayStatus, string> = { available: "", full: "занято", closed: "вых.", out_of_range: "" };
 
 function monthDays(month: string): string[] {
   const first = `${month}-01`;
@@ -176,8 +178,8 @@ export function MonthCalendar({
                   >
                     <span className="tabular-nums">{day}</span>
                     {!loading && status !== "out_of_range" && status !== "available" && (
-                      <span aria-hidden className="mt-1 text-[10px] leading-none">
-                        {STATUS_TEXT[status]}
+                      <span aria-hidden className="mt-1 max-w-full truncate text-[10px] leading-none">
+                        {STATUS_SHORT[status]}
                       </span>
                     )}
                     {status === "available" && (
@@ -193,7 +195,7 @@ export function MonthCalendar({
         ))}
       </div>
       <p className="mt-2 text-xs text-muted-text">
-        ● — есть свободное время. Стрелки на клавиатуре перемещают по дням, PageUp/PageDown — по месяцам.
+        ● — есть свободное время, «занято» — всё время занято, «вых.» — выходной. Стрелки на клавиатуре перемещают по дням, PageUp/PageDown — по месяцам.
       </p>
     </div>
   );
