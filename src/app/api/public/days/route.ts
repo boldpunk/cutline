@@ -1,13 +1,21 @@
 import { z } from "zod";
 import { getDb } from "@/lib/db/client";
 import { addDays, diffDays, isValidDateString } from "@/lib/domain/time";
-import { clientPolicy, dayStatus, loadOfferings, loadSchedule } from "@/lib/server/availability";
+import { staffPolicy, clientPolicy, dayStatus, loadOfferings, loadSchedule } from "@/lib/server/availability";
 import { DomainError } from "@/lib/server/errors";
 import { getSettings } from "@/lib/server/settings";
+import { getStaff } from "@/lib/server/staff-auth";
 import { errorResponse, json } from "@/lib/server/web";
 import { isoDate, uuid } from "@/lib/validation";
 
-const query = z.object({ service: uuid, barber: z.union([uuid, z.literal("any")]), from: isoDate, to: isoDate });
+// Staff (admins) may book inside the client lead time, e.g. walk-ins.
+async function policyFor(scope: string | undefined, settings: Awaited<ReturnType<typeof getSettings>>) {
+  if (scope === "staff" && (await getStaff())?.role === "admin") return staffPolicy(settings, Date.now());
+  return clientPolicy(settings, Date.now());
+}
+
+const query = z.object({ service: uuid, barber: z.union([uuid, z.literal("any")]),
+  scope: z.enum(["client", "staff"]).optional(), from: isoDate, to: isoDate });
 
 /** Per-day status for a calendar month: available | full | closed | out_of_range. */
 export async function GET(req: Request) {
@@ -18,7 +26,7 @@ export async function GET(req: Request) {
     if (span < 0 || span > 42) throw new DomainError("validation", "Слишком большой период");
     const db = getDb();
     const settings = await getSettings(db);
-    const policy = clientPolicy(settings, Date.now());
+    const policy = await policyFor(p.scope, settings);
     const offerings = await loadOfferings(db, p.service, p.barber === "any" ? undefined : [p.barber]);
     const data = await loadSchedule(db, settings.timezone, offerings.map((o) => o.barberId), p.from, p.to);
     const days = [];

@@ -10,6 +10,8 @@ const privateHeaders = [
 const nextConfig: NextConfig = {
   output: "standalone",
   poweredByHeader: false,
+  // Photo uploads (≤ 3 MB) go through Server Actions.
+  experimental: { serverActions: { bodySizeLimit: "4mb" } },
   async headers() {
     return [
       {

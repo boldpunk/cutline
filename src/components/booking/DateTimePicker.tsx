@@ -24,6 +24,7 @@ export function DateTimePicker({
   onDate,
   onTime,
   todayHint,
+  scope = "client",
 }: {
   serviceId: string;
   barberId: string; // id or "any"
@@ -33,6 +34,8 @@ export function DateTimePicker({
   onDate: (date: string, opts: { auto: boolean }) => void;
   onTime: (slot: SlotOption, offers: SlotsResponse["offers"]) => void;
   todayHint: string; // salon-local today, used before the first response arrives
+  /** "staff" lets admins see times inside the client lead window (server checks the session). */
+  scope?: "client" | "staff";
 }) {
   const [month, setMonth] = useState((date ?? todayHint).slice(0, 7));
   const [range, setRange] = useState<{ today: string; lastDate: string } | null>(null);
@@ -56,7 +59,7 @@ export function DateTimePicker({
       setDaysLoading(false);
       return;
     }
-    apiGet<DaysResponse>(`/api/public/days?service=${serviceId}&barber=${barberId}&from=${from}&to=${to}`).then((r) => {
+    apiGet<DaysResponse>(`/api/public/days?service=${serviceId}&barber=${barberId}&from=${from}&to=${to}&scope=${scope}`).then((r) => {
       if (cancelled) return;
       setDaysLoading(false);
       if (!r.ok) {
@@ -77,7 +80,7 @@ export function DateTimePicker({
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [month, serviceId, barberId, todayHint, reload]);
+  }, [month, serviceId, barberId, todayHint, reload, scope]);
 
   // Slots for the selected date.
   useEffect(() => {
@@ -88,7 +91,7 @@ export function DateTimePicker({
     let cancelled = false;
     setSlotsLoading(true);
     setSlotsError(null);
-    apiGet<SlotsResponse>(`/api/public/slots?service=${serviceId}&barber=${barberId}&date=${date}`).then((r) => {
+    apiGet<SlotsResponse>(`/api/public/slots?service=${serviceId}&barber=${barberId}&date=${date}&scope=${scope}`).then((r) => {
       if (cancelled) return;
       setSlotsLoading(false);
       if (r.ok) setSlots(r.data);
@@ -97,7 +100,7 @@ export function DateTimePicker({
     return () => {
       cancelled = true;
     };
-  }, [date, serviceId, barberId, reload]);
+  }, [date, serviceId, barberId, reload, scope]);
 
   const minMonth = (range?.today ?? todayHint).slice(0, 7);
   const maxMonth = (range?.lastDate ?? shiftMonth(todayHint.slice(0, 7), 2) + "-01").slice(0, 7);
