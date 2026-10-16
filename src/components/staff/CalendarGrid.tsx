@@ -5,7 +5,7 @@ import { formatTime, STATUS_LABELS } from "@/lib/format";
 import type { CalendarItem } from "@/lib/server/staff-data";
 
 const ROW_MIN = 15;
-const ROW_PX = 14;
+const ROW_PX = 20;
 
 export type CalendarColumn = { key: string; label: string; sublabel?: string; date: string; barberId: string };
 
