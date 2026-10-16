@@ -31,6 +31,7 @@ export const salonSettings = pgTable("salon_settings", {
   about: text("about"),
   address: text("address"),
   mapUrl: text("map_url"),
+  heroMediaId: uuid("hero_media_id"),
   phone: text("phone"),
   socials: jsonb("socials").$type<SocialLink[]>().notNull().default([]),
   timezone: text("timezone").notNull(),

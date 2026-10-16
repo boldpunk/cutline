@@ -16,6 +16,7 @@ create table salon_settings (
   about               text check (char_length(about) <= 1000),
   address             text check (char_length(address) <= 200),
   map_url             text check (char_length(map_url) <= 500),
+  hero_media_id       uuid,
   phone               text check (char_length(phone) <= 40),
   socials             jsonb not null default '[]'::jsonb,
   timezone            text not null default 'Asia/Tashkent',
@@ -43,6 +44,8 @@ create table media (
   size         integer not null check (size between 1 and 3145728),
   created_at   timestamptz not null default now()
 );
+alter table salon_settings
+  add constraint salon_settings_hero_media_fk foreign key (hero_media_id) references media(id) on delete set null;
 
 -- ---------------------------------------------------------------------------
 -- Barbers & services
