@@ -38,15 +38,18 @@
 
 ## Посмотреть локально за одну команду
 
-Нужен только Docker Desktop (или docker + compose v2):
+**Без Docker** — нужен только [Node.js 22+](https://nodejs.org) (и git):
 
 ```bash
 git clone https://github.com/boldpunk/cutline.git && cd cutline
 git checkout claude/new-session-6xc1wf   # пока PR не влит
-./scripts/local-demo.sh
+npm install
+npm run demo
 ```
 
-Скрипт создаст `.env` со случайным секретом, соберёт образ, поднимет Postgres + приложение + worker, заполнит вымышленными демо-данными и напечатает адреса: сайт — http://localhost:3000, кабинет — http://localhost:3000/staff (`admin@demo.cutline` / `demo-cutline-2026`). Порт занят — `APP_PORT=3005 ./scripts/local-demo.sh`. Остановить — `./scripts/local-demo.sh stop`, стереть данные — `./scripts/local-demo.sh reset`. На Windows запускайте из Git Bash или WSL.
+`npm run demo` сам запускает встроенный PostgreSQL (пакет `embedded-postgres`, данные в папке `.demo-db`), применяет миграции, заполняет вымышленными демо-данными и открывает сайт: http://localhost:3000, кабинет — http://localhost:3000/staff (`admin@demo.cutline` / `demo-cutline-2026`). Остановить — Ctrl+C; начать с чистого листа — удалить `.demo-db`. Порт занят — `PORT=3005 npm run demo`. Работает на macOS, Linux и Windows.
+
+**С Docker** (полный стек с фоновым worker'ом): `./scripts/local-demo.sh`, остановить — `./scripts/local-demo.sh stop`, стереть данные — `./scripts/local-demo.sh reset`.
 
 ## Быстрый старт (Docker)
 
