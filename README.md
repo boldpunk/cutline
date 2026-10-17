@@ -9,6 +9,7 @@
 ## Содержание
 
 - [Стек](#стек)
+- [Посмотреть локально за одну команду](#посмотреть-локально-за-одну-команду)
 - [Быстрый старт (Docker)](#быстрый-старт-docker)
 - [Локальная разработка](#локальная-разработка)
 - [Настройка реального салона (live)](#настройка-реального-салона-live)
@@ -34,6 +35,18 @@
 | Шрифты | Oswald и Inter (SIL Open Font License 1.1), локально через `@fontsource-variable/*`, с кириллицей |
 
 Версии зафиксированы в `package-lock.json`.
+
+## Посмотреть локально за одну команду
+
+Нужен только Docker Desktop (или docker + compose v2):
+
+```bash
+git clone https://github.com/boldpunk/cutline.git && cd cutline
+git checkout claude/new-session-6xc1wf   # пока PR не влит
+./scripts/local-demo.sh
+```
+
+Скрипт создаст `.env` со случайным секретом, соберёт образ, поднимет Postgres + приложение + worker, заполнит вымышленными демо-данными и напечатает адреса: сайт — http://localhost:3000, кабинет — http://localhost:3000/staff (`admin@demo.cutline` / `demo-cutline-2026`). Порт занят — `APP_PORT=3005 ./scripts/local-demo.sh`. Остановить — `./scripts/local-demo.sh stop`, стереть данные — `./scripts/local-demo.sh reset`. На Windows запускайте из Git Bash или WSL.
 
 ## Быстрый старт (Docker)
 

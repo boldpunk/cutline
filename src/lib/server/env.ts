@@ -12,6 +12,7 @@ export const env = {
   get appSecret(): string {
     const s = process.env.APP_SECRET ?? "";
     if (s.length < 32) throw new Error("APP_SECRET must be at least 32 characters");
+    if (s.startsWith("change-me")) throw new Error("APP_SECRET is still the placeholder from .env.example — generate a random one");
     return s;
   },
   get cookieSecure(): boolean {
