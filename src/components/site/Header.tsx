@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SearchButton } from "@/components/search/SearchButton";
 
 const NAV = [
   { href: "/services", label: "Услуги и цены" },
@@ -24,7 +25,10 @@ export function Header({ salonName }: { salonName: string }) {
             ))}
           </ul>
         </nav>
-        <details className="relative ml-auto md:hidden">
+        <div className="ml-auto md:ml-0">
+          <SearchButton />
+        </div>
+        <details className="relative md:hidden">
           <summary className="btn btn-ghost btn-sm list-none [&::-webkit-details-marker]:hidden">Меню</summary>
           <ul className="card absolute right-0 top-12 w-56 p-2 shadow-lg">
             {NAV.map((n) => (

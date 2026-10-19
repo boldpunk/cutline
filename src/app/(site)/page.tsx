@@ -159,7 +159,7 @@ export default async function HomePage() {
       )}
 
       {/* How it works — only claims what the system actually does */}
-      <section className="mx-auto max-w-6xl px-4 py-14 md:py-20" aria-labelledby="how-h">
+      <section id="how" className="mx-auto max-w-6xl px-4 py-14 md:py-20" aria-labelledby="how-h">
         <h2 id="how-h" className="display text-5xl md:text-6xl">
           Как работает запись
         </h2>

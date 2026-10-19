@@ -2,6 +2,7 @@ import { DemoBanner } from "@/components/site/DemoBanner";
 import { Footer } from "@/components/site/Footer";
 import { Header } from "@/components/site/Header";
 import { StickyBookBar } from "@/components/site/StickyBookBar";
+import { SearchDialog } from "@/components/search/SearchDialog";
 import { getPublicSettings } from "@/lib/server/public-data";
 
 export const dynamic = "force-dynamic";
@@ -18,6 +19,7 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
       <main id="main">{children}</main>
       <Footer salonName={s.name} address={s.address} phone={s.phone} socials={s.socials} mode={s.mode} />
       <StickyBookBar />
+      <SearchDialog />
     </>
   );
 }

@@ -6,7 +6,20 @@ async function bookFirstSlot(page: Page, opts: { barber: string; phone: string; 
   await expect(page).toHaveURL(/\/book/);
   await page.getByRole("button", { name: /^Мужская стрижка/ }).click();
   await page.getByRole("button", { name: new RegExp(opts.barber) }).click();
-  // A date with free time is pre-selected; pick the first time button.
+  // Pick a day a few days ahead so the visit is outside the 12 h change cutoff
+  // (the pre-selected first day may be today, where cancelling is correctly refused).
+  const freeDays = page.locator('[role=grid] button[aria-label*="есть время"]');
+  await freeDays.first().waitFor();
+  if ((await freeDays.count()) < 3) {
+    await page.getByRole("button", { name: "Следующий месяц" }).click();
+    await freeDays.first().waitFor();
+  }
+  const day = (await freeDays.count()) >= 3 ? freeDays.nth(2) : freeDays.first();
+  const dayLabel = (await day.getAttribute("aria-label"))!.split(" — ")[0]!;
+  await day.click();
+  // Wait until the slots of that day (not the previously selected one) are shown.
+  await expect(page.locator("#pick-time-h")).toContainText(dayLabel);
+  await expect(page.getByText("Загружаем свободное время…")).toHaveCount(0);
   const firstSlot = page.locator("#pick-time-h ~ div button[aria-pressed]").first();
   await firstSlot.waitFor();
   const time = (await firstSlot.textContent())!.trim();
