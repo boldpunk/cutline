@@ -7,7 +7,8 @@ function bool(v: string | undefined, fallback: boolean): boolean {
 
 export const env = {
   get appUrl(): string {
-    return (process.env.APP_URL ?? "http://localhost:3000").replace(/\/+$/, "");
+    // Render sets RENDER_EXTERNAL_URL, so a one-click deploy needs no APP_URL.
+    return (process.env.APP_URL || process.env.RENDER_EXTERNAL_URL || "http://localhost:3000").replace(/\/+$/, "");
   },
   get appSecret(): string {
     const s = process.env.APP_SECRET ?? "";
