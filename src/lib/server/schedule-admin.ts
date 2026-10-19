@@ -12,7 +12,7 @@ import { audit } from "./audit";
 import type { Actor } from "./bookings";
 import { DomainError } from "./errors";
 import { lockBarbers } from "./locks";
-import { getSettings } from "./settings";
+import { getSalon, type Salon } from "./settings";
 
 export type StaffActor = Extract<Actor, { type: "staff" }>;
 
@@ -25,8 +25,17 @@ export type AffectedBooking = {
   serviceName: string;
 };
 
-async function allBarberIds(ex: Executor): Promise<string[]> {
-  return (await ex.select({ id: barbers.id }).from(barbers)).map((b) => b.id);
+async function allBarberIds(ex: Executor, salonId: string): Promise<string[]> {
+  return (await ex.select({ id: barbers.id }).from(barbers).where(eq(barbers.salonId, salonId))).map((b) => b.id);
+}
+
+/** Refuses ids of barbers from another salon (reported as not found). */
+async function assertBarberInSalon(ex: Executor, barberId: string, salonId: string): Promise<void> {
+  const [b] = await ex
+    .select({ id: barbers.id })
+    .from(barbers)
+    .where(and(eq(barbers.id, barberId), eq(barbers.salonId, salonId)));
+  if (!b) throw new DomainError("not_found", "Мастер не найден.");
 }
 
 /**
@@ -34,9 +43,13 @@ async function allBarberIds(ex: Executor): Promise<string[]> {
  * working windows or overlap a time block. Call inside the transaction after
  * applying the change (and after locking the barbers).
  */
-export async function findScheduleConflicts(ex: Executor, barberIds: string[], now: number): Promise<AffectedBooking[]> {
+export async function findScheduleConflicts(
+  ex: Executor,
+  settings: Salon,
+  barberIds: string[],
+  now: number,
+): Promise<AffectedBooking[]> {
   if (barberIds.length === 0) return [];
-  const settings = await getSettings(ex);
   const future = await ex
     .select({
       id: bookings.id,
@@ -51,7 +64,14 @@ export async function findScheduleConflicts(ex: Executor, barberIds: string[], n
     })
     .from(bookings)
     .innerJoin(barbers, eq(barbers.id, bookings.barberId))
-    .where(and(inArray(bookings.barberId, barberIds), eq(bookings.status, "confirmed"), gt(bookings.startAt, new Date(now))))
+    .where(
+      and(
+        eq(bookings.salonId, settings.id),
+        inArray(bookings.barberId, barberIds),
+        eq(bookings.status, "confirmed"),
+        gt(bookings.startAt, new Date(now)),
+      ),
+    )
     .orderBy(asc(bookings.startAt));
   if (future.length === 0) return [];
 
@@ -59,7 +79,7 @@ export async function findScheduleConflicts(ex: Executor, barberIds: string[], n
   const dates = future.map((b) => utcToZoned(b.startAt.getTime(), tz).date);
   const from = dates.reduce((a, b) => (a < b ? a : b));
   const to = dates.reduce((a, b) => (a > b ? a : b));
-  const data = await loadSchedule(ex, tz, [...new Set(future.map((b) => b.barberId))], from, to);
+  const data = await loadSchedule(ex, settings, [...new Set(future.map((b) => b.barberId))], from, to);
 
   const out: AffectedBooking[] = [];
   future.forEach((b, i) => {
@@ -122,7 +142,7 @@ export async function createTimeBlock(input: {
   now?: number;
 }): Promise<{ id: string }> {
   const db = getDb();
-  const settings = await getSettings(db);
+  const settings = await getSalon(db, input.actor.salonId);
   assertCanManageBarber(input.actor, input.barberId, settings.barbersCanBlock);
   if (!(input.endAt > input.startAt)) throw new DomainError("validation", "Окончание должно быть позже начала.");
   if (input.endAt.getTime() - input.startAt.getTime() > 366 * 86_400_000) {
@@ -130,6 +150,7 @@ export async function createTimeBlock(input: {
   }
 
   return db.transaction(async (tx) => {
+    await assertBarberInSalon(tx, input.barberId, input.actor.salonId);
     await lockBarbers(tx, [input.barberId]);
     // A block may never silently swallow a confirmed booking.
     const clashing = await tx
@@ -158,6 +179,7 @@ export async function createTimeBlock(input: {
     const [row] = await tx
       .insert(timeBlocks)
       .values({
+        salonId: input.actor.salonId,
         barberId: input.barberId,
         kind: input.kind,
         startAt: input.startAt,
@@ -166,7 +188,7 @@ export async function createTimeBlock(input: {
         createdBy: input.actor.userId,
       })
       .returning({ id: timeBlocks.id });
-    await audit(tx, input.actor.userId, "time_block.create", "time_block", row!.id, {
+    await audit(tx, input.actor.salonId, input.actor.userId, "time_block.create", "time_block", row!.id, {
       barberId: input.barberId,
       kind: input.kind,
       startAt: input.startAt.toISOString(),
@@ -178,14 +200,14 @@ export async function createTimeBlock(input: {
 
 export async function deleteTimeBlock(input: { actor: StaffActor; blockId: string }): Promise<void> {
   const db = getDb();
-  const settings = await getSettings(db);
+  const settings = await getSalon(db, input.actor.salonId);
   await db.transaction(async (tx) => {
     const [blk] = await tx.select().from(timeBlocks).where(eq(timeBlocks.id, input.blockId)).for("update");
-    if (!blk) throw new DomainError("not_found", "Блокировка не найдена.");
+    if (!blk || blk.salonId !== input.actor.salonId) throw new DomainError("not_found", "Блокировка не найдена.");
     assertCanManageBarber(input.actor, blk.barberId, settings.barbersCanBlock);
     await lockBarbers(tx, [blk.barberId]);
     await tx.delete(timeBlocks).where(eq(timeBlocks.id, blk.id));
-    await audit(tx, input.actor.userId, "time_block.delete", "time_block", blk.id, {
+    await audit(tx, input.actor.salonId, input.actor.userId, "time_block.delete", "time_block", blk.id, {
       barberId: blk.barberId,
       startAt: blk.startAt.toISOString(),
       endAt: blk.endAt.toISOString(),
@@ -213,18 +235,30 @@ export async function replaceWeeklyHours(input: {
   }
   const db = getDb();
   await db.transaction(async (tx) => {
-    const affectedBarbers = input.barberId ? [input.barberId] : await allBarberIds(tx);
+    if (input.barberId) await assertBarberInSalon(tx, input.barberId, input.actor.salonId);
+    const affectedBarbers = input.barberId ? [input.barberId] : await allBarberIds(tx, input.actor.salonId);
     await lockBarbers(tx, affectedBarbers);
     await tx
       .delete(weeklyAvailability)
-      .where(input.barberId ? eq(weeklyAvailability.barberId, input.barberId) : isNull(weeklyAvailability.barberId));
+      .where(
+        and(
+          eq(weeklyAvailability.salonId, input.actor.salonId),
+          input.barberId ? eq(weeklyAvailability.barberId, input.barberId) : isNull(weeklyAvailability.barberId),
+        ),
+      );
     const rows = Object.entries(input.hours).flatMap(([day, ranges]) =>
-      ranges.map((r) => ({ barberId: input.barberId, weekday: Number(day), startMin: r.startMin, endMin: r.endMin })),
+      ranges.map((r) => ({
+        salonId: input.actor.salonId,
+        barberId: input.barberId,
+        weekday: Number(day),
+        startMin: r.startMin,
+        endMin: r.endMin,
+      })),
     );
     if (rows.length) await tx.insert(weeklyAvailability).values(rows);
-    const conflicts = await findScheduleConflicts(tx, affectedBarbers, now);
+    const conflicts = await findScheduleConflicts(tx, await getSalon(tx, input.actor.salonId), affectedBarbers, now);
     if (conflicts.length) throw conflictError(conflicts);
-    await audit(tx, input.actor.userId, "weekly_hours.replace", input.barberId ? "barber" : "salon", input.barberId, {
+    await audit(tx, input.actor.salonId, input.actor.userId, "weekly_hours.replace", input.barberId ? "barber" : "salon", input.barberId, {
       hours: input.hours,
     });
   });
@@ -250,22 +284,24 @@ export async function setDateException(input: {
   }
   const db = getDb();
   await db.transaction(async (tx) => {
-    const affectedBarbers = input.barberId ? [input.barberId] : await allBarberIds(tx);
+    if (input.barberId) await assertBarberInSalon(tx, input.barberId, input.actor.salonId);
+    const affectedBarbers = input.barberId ? [input.barberId] : await allBarberIds(tx, input.actor.salonId);
     await lockBarbers(tx, affectedBarbers);
     await tx
       .delete(scheduleExceptions)
       .where(
         and(
+          eq(scheduleExceptions.salonId, input.actor.salonId),
           eq(scheduleExceptions.date, input.date),
           input.barberId ? eq(scheduleExceptions.barberId, input.barberId) : isNull(scheduleExceptions.barberId),
         ),
       );
-    const base = { barberId: input.barberId, date: input.date, note: input.note ?? null, createdBy: input.actor.userId };
+    const base = { salonId: input.actor.salonId, barberId: input.barberId, date: input.date, note: input.note ?? null, createdBy: input.actor.userId };
     if (input.kind === "closed") await tx.insert(scheduleExceptions).values({ ...base, kind: "closed" });
     else await tx.insert(scheduleExceptions).values(ranges.map((r) => ({ ...base, kind: "hours" as const, ...r })));
-    const conflicts = await findScheduleConflicts(tx, affectedBarbers, now);
+    const conflicts = await findScheduleConflicts(tx, await getSalon(tx, input.actor.salonId), affectedBarbers, now);
     if (conflicts.length) throw conflictError(conflicts);
-    await audit(tx, input.actor.userId, "schedule_exception.set", input.barberId ? "barber" : "salon", input.barberId, {
+    await audit(tx, input.actor.salonId, input.actor.userId, "schedule_exception.set", input.barberId ? "barber" : "salon", input.barberId, {
       date: input.date,
       kind: input.kind,
       ranges,
@@ -283,20 +319,22 @@ export async function removeDateException(input: {
   const now = input.now ?? Date.now();
   const db = getDb();
   await db.transaction(async (tx) => {
-    const affectedBarbers = input.barberId ? [input.barberId] : await allBarberIds(tx);
+    if (input.barberId) await assertBarberInSalon(tx, input.barberId, input.actor.salonId);
+    const affectedBarbers = input.barberId ? [input.barberId] : await allBarberIds(tx, input.actor.salonId);
     await lockBarbers(tx, affectedBarbers);
     await tx
       .delete(scheduleExceptions)
       .where(
         and(
+          eq(scheduleExceptions.salonId, input.actor.salonId),
           eq(scheduleExceptions.date, input.date),
           input.barberId ? eq(scheduleExceptions.barberId, input.barberId) : isNull(scheduleExceptions.barberId),
         ),
       );
     // Removing a "custom hours" override can shrink the day back to weekly hours.
-    const conflicts = await findScheduleConflicts(tx, affectedBarbers, now);
+    const conflicts = await findScheduleConflicts(tx, await getSalon(tx, input.actor.salonId), affectedBarbers, now);
     if (conflicts.length) throw conflictError(conflicts);
-    await audit(tx, input.actor.userId, "schedule_exception.remove", input.barberId ? "barber" : "salon", input.barberId, {
+    await audit(tx, input.actor.salonId, input.actor.userId, "schedule_exception.remove", input.barberId ? "barber" : "salon", input.barberId, {
       date: input.date,
     });
   });
@@ -308,13 +346,14 @@ export async function setBarberActive(input: { actor: StaffActor; barberId: stri
   const now = input.now ?? Date.now();
   const db = getDb();
   await db.transaction(async (tx) => {
+    await assertBarberInSalon(tx, input.barberId, input.actor.salonId);
     await lockBarbers(tx, [input.barberId]);
     await tx.update(barbers).set({ active: input.active, updatedAt: new Date(now) }).where(eq(barbers.id, input.barberId));
     if (!input.active) {
-      const conflicts = await findScheduleConflicts(tx, [input.barberId], now);
+      const conflicts = await findScheduleConflicts(tx, await getSalon(tx, input.actor.salonId), [input.barberId], now);
       if (conflicts.length) throw conflictError(conflicts);
     }
-    await audit(tx, input.actor.userId, input.active ? "barber.activate" : "barber.deactivate", "barber", input.barberId);
+    await audit(tx, input.actor.salonId, input.actor.userId, input.active ? "barber.activate" : "barber.deactivate", "barber", input.barberId);
   });
 }
 

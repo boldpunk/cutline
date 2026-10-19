@@ -3,7 +3,7 @@ import { BlockForm, DeleteBlockButton } from "@/components/staff/BlockForm";
 import { getDb } from "@/lib/db/client";
 import { todayIn } from "@/lib/domain/time";
 import { formatDateTimeCompact } from "@/lib/format";
-import { getSettings } from "@/lib/server/settings";
+import { getSalon } from "@/lib/server/settings";
 import { requireStaff } from "@/lib/server/staff-auth";
 import { listBarbersBasic, listBlocks } from "@/lib/server/staff-data";
 
@@ -12,10 +12,10 @@ const KIND: Record<string, string> = { break: "Перерыв", vacation: "От�
 
 export default async function BlocksPage() {
   const user = await requireStaff();
-  const settings = await getSettings(getDb());
+  const settings = await getSalon(getDb(), user.salonId);
   const tz = settings.timezone;
   const canEdit = user.role === "admin" || settings.barbersCanBlock;
-  const barbers = (await listBarbersBasic({ activeOnly: true })).filter((b) => user.role === "admin" || b.id === user.barberId);
+  const barbers = (await listBarbersBasic(user.salonId, { activeOnly: true })).filter((b) => user.role === "admin" || b.id === user.barberId);
   const blocks = await listBlocks(user, new Date());
   return (
     <div className="space-y-6">

@@ -4,7 +4,7 @@ import { isValidDateString } from "@/lib/domain/time";
 import { formatCode } from "@/lib/server/crypto";
 import { formatDateTimeCompact, STATUS_LABELS } from "@/lib/format";
 import { audit } from "@/lib/server/audit";
-import { getSettings } from "@/lib/server/settings";
+import { getSalon } from "@/lib/server/settings";
 import { getStaff } from "@/lib/server/staff-auth";
 import { listBookings } from "@/lib/server/staff-data";
 
@@ -22,7 +22,7 @@ export async function GET(req: Request) {
   const user = await getStaff();
   if (!user || user.role !== "admin") return new Response("Not found", { status: 404 });
   const sp = new URL(req.url).searchParams;
-  const settings = await getSettings(getDb());
+  const settings = await getSalon(getDb(), user.salonId);
   const status = sp.get("status");
   const filters = {
     from: isValidDateString(sp.get("from") ?? "") ? sp.get("from")! : undefined,
@@ -54,7 +54,7 @@ export async function GET(req: Request) {
         .join(","),
     );
   }
-  await audit(getDb(), user.id, "bookings.export_csv", "bookings", null, { rows: rows.length, filters: { ...filters, q: filters.q ? "…" : undefined } });
+  await audit(getDb(), user.salonId, user.id, "bookings.export_csv", "bookings", null, { rows: rows.length, filters: { ...filters, q: filters.q ? "…" : undefined } });
   return new Response("﻿" + lines.join("\r\n"), {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",

@@ -1,25 +1,83 @@
 @import "tailwindcss";
 
-/* Design tokens. Contrast of every text pair is checked by `npm run check:contrast`. */
+/* Design tokens. Defaults = "pole" theme; [data-salon-theme] blocks below
+   re-point the same variables, so every utility class follows the theme.
+   Contrast of every text pair is checked by `npm run check:contrast`. */
 @theme {
-  --color-ink: #171715;
-  --color-paper: #f3f0e8;
-  --color-surface: #262622;
-  --color-accent: #d9f05a;
-  --color-accent-strong: #c8e23c;
-  --color-muted: #77776f;      /* large text, icons, decorative only */
-  --color-muted-text: #5f5f58; /* small text on light backgrounds (5.65:1) */
-  --color-muted-dark: #a3a39a; /* small text on ink (7.06:1) */
-  --color-line: #c9c8be;
-  --color-control: #8a897f;    /* input borders (3.09:1) */
-  --color-card: #fbfaf6;
+  --color-ink: #141a2e;        /* text on light, background of dark sections */
+  --color-paper: #f2f1ed;      /* page background */
+  --color-surface: #1f2742;    /* cards on dark sections */
+  --color-card: #fbfaf7;       /* cards on light */
+  --color-line: #d4d2ca;
+  --color-control: #85837b;    /* input borders (≥3:1) */
+  --color-muted: #7a7b82;      /* large text / icons only */
+  --color-muted-text: #52545e; /* small text on light */
+  --color-muted-dark: #aab0c4; /* small text on ink */
+  --color-accent: #c8261f;     /* brand: primary buttons */
+  --color-on-accent: #ffffff;  /* text on accent */
+  --color-accent-soft: #f6dad6;/* hover / selection tint on light (ink text) */
+  --color-highlight: #ff8a7a;  /* accent used as text on ink */
+  --color-pole-a: #c8261f;
+  --color-pole-b: #2c47c9;
   --color-danger: #a3261b;
   --color-danger-bg: #f8e3df;
   --color-success: #2f6b2a;
   --color-success-bg: #e3efd9;
 
-  --font-display: "Oswald Variable", "Arial Narrow", system-ui, sans-serif;
-  --font-sans: "Inter Variable", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-display: "Unbounded Variable", "Arial Black", system-ui, sans-serif;
+  --font-sans: "Manrope Variable", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+[data-salon-theme="night"] {
+  --color-ink: #171715;
+  --color-paper: #f3f0e8;
+  --color-surface: #262622;
+  --color-card: #fbfaf6;
+  --color-line: #c9c8be;
+  --color-control: #8a897f;
+  --color-muted: #77776f;
+  --color-muted-text: #5f5f58;
+  --color-muted-dark: #a3a39a;
+  --color-accent: #d9f05a;
+  --color-on-accent: #171715;
+  --color-accent-soft: #eef7c4;
+  --color-highlight: #d9f05a;
+  --color-pole-a: #d9f05a;
+  --color-pole-b: #f3f0e8;
+}
+[data-salon-theme="mint"] {
+  --color-ink: #0f2a24;
+  --color-paper: #eef3ef;
+  --color-surface: #173a32;
+  --color-card: #f8fbf9;
+  --color-line: #c6d3cc;
+  --color-control: #7a8b84;
+  --color-muted: #6e7f78;
+  --color-muted-text: #4a5c55;
+  --color-muted-dark: #a3bdb3;
+  --color-accent: #177556;
+  --color-on-accent: #ffffff;
+  --color-accent-soft: #d2ede1;
+  --color-highlight: #7fe3b9;
+  --color-pole-a: #177556;
+  --color-pole-b: #7fe3b9;
+}
+[data-salon-theme="brass"] {
+  --color-ink: #1e1913;
+  --color-paper: #f4efe7;
+  --color-surface: #2c251c;
+  --color-card: #fbf8f3;
+  --color-line: #d6cdbf;
+  --color-control: #8a8072;
+  --color-muted: #857a6b;
+  --color-muted-text: #5c5244;
+  --color-muted-dark: #b8ab97;
+  --color-accent: #d9a441;
+  --color-on-accent: #1e1913;
+  --color-accent-soft: #f4e4c4;
+  --color-highlight: #e8b95a;
+  --color-pole-a: #d9a441;
+  --color-pole-b: #8c3b2a;
 }
 
 @layer base {
@@ -31,7 +89,6 @@
     background: var(--color-paper);
     color: var(--color-ink);
     font-family: var(--font-sans);
-    font-feature-settings: "cv11", "ss01";
     -webkit-font-smoothing: antialiased;
     overflow-x: clip;
   }
@@ -42,10 +99,10 @@
   }
   .on-dark :focus-visible,
   .on-dark:focus-visible {
-    outline-color: var(--color-accent);
+    outline-color: var(--color-highlight);
   }
   ::selection {
-    background: var(--color-accent);
+    background: var(--color-accent-soft);
     color: var(--color-ink);
   }
   input,
@@ -58,10 +115,27 @@
 @layer components {
   .display {
     font-family: var(--font-display);
-    font-weight: 650;
-    letter-spacing: -0.01em;
-    line-height: 0.95;
-    text-transform: uppercase;
+    font-weight: 700;
+    letter-spacing: -0.025em;
+    line-height: 1.02;
+    text-wrap: balance;
+    /* Owners type their own names; a long word must never widen the page. */
+    overflow-wrap: break-word;
+    min-width: 0;
+  }
+  /* Barber-pole stripes: the recurring motif. */
+  .pole {
+    background-image: repeating-linear-gradient(
+      -45deg,
+      var(--color-pole-a) 0 14px,
+      var(--color-paper) 14px 28px,
+      var(--color-pole-b) 28px 42px,
+      var(--color-paper) 42px 56px
+    );
+    background-size: 79.2px 79.2px;
+  }
+  .pole-turning {
+    animation: pole-turn 6s linear infinite;
   }
   .btn {
     display: inline-flex;
@@ -89,11 +163,13 @@
   }
   .btn-primary {
     background: var(--color-accent);
-    color: var(--color-ink);
-    border: 2px solid var(--color-ink);
+    color: var(--color-on-accent);
+    border: 2px solid var(--color-accent);
+    box-shadow: 0 2px 0 0 var(--color-ink);
   }
   .btn-primary:hover:not([disabled]) {
-    background: var(--color-accent-strong);
+    filter: brightness(1.06);
+    box-shadow: 0 3px 0 0 var(--color-ink);
   }
   .btn-dark {
     background: var(--color-ink);
@@ -189,6 +265,12 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+}
+
+@keyframes pole-turn {
+  to {
+    background-position: 0 79.2px;
   }
 }
 

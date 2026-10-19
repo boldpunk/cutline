@@ -107,7 +107,7 @@ export function CalendarGrid({
                     <Link
                       href={`/staff/bookings/${it.id}`}
                       className={`absolute inset-x-1 overflow-hidden rounded-md border-l-4 px-2 py-1 text-xs leading-tight shadow-sm hover:z-10 hover:shadow-md ${
-                        done ? "border-muted bg-line/40 text-muted-text" : "border-ink bg-accent text-ink"
+                        done ? "border-muted bg-line/40 text-muted-text" : "border-accent bg-accent-soft text-ink"
                       }`}
                       style={{ top: p.top, height: p.height }}
                     >

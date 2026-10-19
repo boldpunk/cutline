@@ -5,8 +5,9 @@ import { revalidatePath } from "next/cache";
 import { and, eq, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "@/lib/db/client";
-import { barberServices, barbers, bookings, media, salonSettings, services, users } from "@/lib/db/schema";
+import { SALON_THEMES, barberServices, barbers, bookings, media, salons, services, users } from "@/lib/db/schema";
 import { isValidTimeZone } from "@/lib/domain/time";
+import { slugProblem } from "@/lib/server/settings";
 import { runAction, type ActionResult } from "@/lib/server/action-result";
 import { audit } from "@/lib/server/audit";
 import { DomainError, PG, isPgError } from "@/lib/server/errors";
@@ -46,17 +47,18 @@ export async function saveServiceAction(id: string | null, input: z.input<typeof
     let serviceId: string;
     if (id) {
       serviceId = uuid.parse(id);
-      const [before] = await db.select().from(services).where(eq(services.id, serviceId));
+      const own = and(eq(services.id, serviceId), eq(services.salonId, user.salonId));
+      const [before] = await db.select().from(services).where(own);
       if (!before) throw new DomainError("not_found", "Услуга не найдена.");
-      await db.update(services).set({ ...data, updatedAt: new Date() }).where(eq(services.id, serviceId));
-      await audit(db, user.id, "service.update", "service", serviceId, {
+      await db.update(services).set({ ...data, updatedAt: new Date() }).where(own);
+      await audit(db, user.salonId, user.id, "service.update", "service", serviceId, {
         before: { priceUzs: before.priceUzs, durationMin: before.durationMin, active: before.active },
         after: { priceUzs: data.priceUzs, durationMin: data.durationMin, active: data.active },
       });
     } else {
-      const [row] = await db.insert(services).values(data).returning({ id: services.id });
+      const [row] = await db.insert(services).values({ ...data, salonId: user.salonId }).returning({ id: services.id });
       serviceId = row!.id;
-      await audit(db, user.id, "service.create", "service", serviceId, { name: data.name });
+      await audit(db, user.salonId, user.id, "service.create", "service", serviceId, { name: data.name });
     }
     revalidatePath("/", "layout");
     return { ok: true, message: "Услуга сохранена. Уже созданные записи сохраняют согласованную цену.", data: { id: serviceId } };
@@ -79,17 +81,27 @@ export async function saveServiceOffersAction(serviceId: string, input: z.input<
     const offers = offerSchema.parse(input);
     const db = getDb();
     await db.transaction(async (tx) => {
+      const [svc] = await tx
+        .select({ id: services.id })
+        .from(services)
+        .where(and(eq(services.id, sid), eq(services.salonId, user.salonId)));
+      if (!svc) throw new DomainError("not_found", "Услуга не найдена.");
+      const ownBarbers = new Set(
+        (await tx.select({ id: barbers.id }).from(barbers).where(eq(barbers.salonId, user.salonId))).map((b) => b.id),
+      );
+      if (offers.some((o) => o.enabled && !ownBarbers.has(o.barberId))) throw new DomainError("not_found", "Мастер не найден.");
       await tx.delete(barberServices).where(eq(barberServices.serviceId, sid));
       const rows = offers
         .filter((o) => o.enabled)
         .map((o) => ({
+          salonId: user.salonId,
           barberId: o.barberId,
           serviceId: sid,
           priceUzs: o.priceUzs === "" || o.priceUzs === undefined ? null : o.priceUzs,
           durationMin: o.durationMin === "" || o.durationMin === undefined ? null : o.durationMin,
         }));
       if (rows.length) await tx.insert(barberServices).values(rows);
-      await audit(tx, user.id, "service.offers", "service", sid, { offers: rows.map((r) => ({ barberId: r.barberId, priceUzs: r.priceUzs, durationMin: r.durationMin })) });
+      await audit(tx, user.salonId, user.id, "service.offers", "service", sid, { offers: rows.map((r) => ({ barberId: r.barberId, priceUzs: r.priceUzs, durationMin: r.durationMin })) });
     });
     revalidatePath("/", "layout");
     return { ok: true, message: "Мастера и цены сохранены." };
@@ -113,13 +125,18 @@ export async function saveBarberAction(id: string | null, input: z.input<typeof 
     const db = getDb();
     if (id) {
       const bid = uuid.parse(id);
-      await db.update(barbers).set({ ...data, updatedAt: new Date() }).where(eq(barbers.id, bid));
-      await audit(db, user.id, "barber.update", "barber", bid, { name: data.name });
+      const updated = await db
+        .update(barbers)
+        .set({ ...data, updatedAt: new Date() })
+        .where(and(eq(barbers.id, bid), eq(barbers.salonId, user.salonId)))
+        .returning({ id: barbers.id });
+      if (updated.length === 0) throw new DomainError("not_found", "Мастер не найден.");
+      await audit(db, user.salonId, user.id, "barber.update", "barber", bid, { name: data.name });
       revalidatePath("/", "layout");
       return { ok: true, message: "Профиль сохранён.", data: { id: bid } };
     }
-    const [row] = await db.insert(barbers).values({ ...data, active: true }).returning({ id: barbers.id });
-    await audit(db, user.id, "barber.create", "barber", row!.id, { name: data.name });
+    const [row] = await db.insert(barbers).values({ ...data, active: true, salonId: user.salonId }).returning({ id: barbers.id });
+    await audit(db, user.salonId, user.id, "barber.create", "barber", row!.id, { name: data.name });
     revalidatePath("/", "layout");
     return { ok: true, message: "Мастер добавлен. Укажите его услуги и график.", data: { id: row!.id } };
   });
@@ -141,13 +158,13 @@ const IMAGE_TYPES: Record<string, (b: Buffer) => boolean> = {
 };
 const MAX_IMAGE = 3 * 1024 * 1024;
 
-async function storeImage(file: File | null): Promise<string> {
+async function storeImage(file: File | null, salonId: string): Promise<string> {
   if (!file || file.size === 0) throw new DomainError("validation", "Выберите файл.");
   if (file.size > MAX_IMAGE) throw new DomainError("validation", "Файл больше 3 МБ.");
   const check = IMAGE_TYPES[file.type];
   const bytes = Buffer.from(await file.arrayBuffer());
   if (!check || !check(bytes)) throw new DomainError("validation", "Поддерживаются JPEG, PNG и WebP.");
-  const [row] = await getDb().insert(media).values({ contentType: file.type, bytes, size: bytes.length }).returning({ id: media.id });
+  const [row] = await getDb().insert(media).values({ salonId, contentType: file.type, bytes, size: bytes.length }).returning({ id: media.id });
   return row!.id;
 }
 
@@ -157,17 +174,23 @@ export async function barberPhotoAction(barberId: string, form: FormData): Promi
     const user = await requireAdmin();
     const bid = uuid.parse(barberId);
     const db = getDb();
-    const [b] = await db.select({ photo: barbers.photoMediaId }).from(barbers).where(eq(barbers.id, bid));
+    const [b] = await db
+      .select({ photo: barbers.photoMediaId })
+      .from(barbers)
+      .where(and(eq(barbers.id, bid), eq(barbers.salonId, user.salonId)));
     if (!b) throw new DomainError("not_found", "Мастер не найден.");
     if (form.get("remove") === "1") {
-      await db.update(barbers).set({ photoMediaId: null }).where(eq(barbers.id, bid));
+      await db.update(barbers).set({ photoMediaId: null }).where(and(eq(barbers.id, bid), eq(barbers.salonId, user.salonId)));
     } else {
       if (form.get("rights") !== "on") throw new DomainError("validation", "Подтвердите, что у салона есть право публиковать это фото.");
-      const id = await storeImage(form.get("photo") as File | null);
-      await db.update(barbers).set({ photoMediaId: id, updatedAt: new Date() }).where(eq(barbers.id, bid));
+      const id = await storeImage(form.get("photo") as File | null, user.salonId);
+      await db
+        .update(barbers)
+        .set({ photoMediaId: id, updatedAt: new Date() })
+        .where(and(eq(barbers.id, bid), eq(barbers.salonId, user.salonId)));
     }
     if (b.photo) await db.delete(media).where(eq(media.id, b.photo));
-    await audit(db, user.id, form.get("remove") === "1" ? "barber.photo_remove" : "barber.photo_upload", "barber", bid);
+    await audit(db, user.salonId, user.id, form.get("remove") === "1" ? "barber.photo_remove" : "barber.photo_upload", "barber", bid);
     revalidatePath("/", "layout");
     return { ok: true, message: "Фото обновлено." };
   });
@@ -177,16 +200,16 @@ export async function heroPhotoAction(form: FormData): Promise<ActionResult> {
   return runAction(async () => {
     const user = await requireAdmin();
     const db = getDb();
-    const [s] = await db.select({ hero: salonSettings.heroMediaId }).from(salonSettings);
+    const [s] = await db.select({ hero: salons.heroMediaId }).from(salons).where(eq(salons.id, user.salonId));
     if (form.get("remove") === "1") {
-      await db.update(salonSettings).set({ heroMediaId: null });
+      await db.update(salons).set({ heroMediaId: null }).where(eq(salons.id, user.salonId));
     } else {
       if (form.get("rights") !== "on") throw new DomainError("validation", "Подтвердите, что у салона есть право публиковать это фото.");
-      const id = await storeImage(form.get("photo") as File | null);
-      await db.update(salonSettings).set({ heroMediaId: id, updatedAt: new Date() });
+      const id = await storeImage(form.get("photo") as File | null, user.salonId);
+      await db.update(salons).set({ heroMediaId: id, updatedAt: new Date() }).where(eq(salons.id, user.salonId));
     }
     if (s?.hero) await db.delete(media).where(eq(media.id, s.hero));
-    await audit(db, user.id, "settings.hero_photo", "salon", null);
+    await audit(db, user.salonId, user.id, "settings.hero_photo", "salon", null);
     revalidatePath("/", "layout");
     return { ok: true, message: "Фото главной страницы обновлено." };
   });
@@ -214,6 +237,7 @@ export async function createUserAction(input: z.input<typeof userSchema>): Promi
       const [row] = await db
         .insert(users)
         .values({
+          salonId: admin.salonId,
           email: u.email,
           name: u.name,
           role: u.role,
@@ -221,8 +245,9 @@ export async function createUserAction(input: z.input<typeof userSchema>): Promi
           passwordHash: await hashPassword(u.password),
         })
         .returning({ id: users.id });
-      await audit(db, admin.id, "user.create", "user", row!.id, { email: u.email, role: u.role });
+      await audit(db, admin.salonId, admin.id, "user.create", "user", row!.id, { email: u.email, role: u.role });
     } catch (err) {
+      if (isPgError(err, PG.FOREIGN_KEY)) throw new DomainError("not_found", "Мастер не найден.");
       if (isPgError(err, PG.UNIQUE_VIOLATION)) throw new DomainError("conflict", "Этот e-mail или профиль мастера уже привязан к учётной записи.");
       throw err;
     }
@@ -236,9 +261,14 @@ export async function resetPasswordAction(userId: string, password: string): Pro
     const admin = await requireAdmin();
     const uid = uuid.parse(userId);
     const pw = z.string().min(PASSWORD_MIN_LENGTH, `Пароль не короче ${PASSWORD_MIN_LENGTH} символов`).max(200).parse(password);
-    await getDb().update(users).set({ passwordHash: await hashPassword(pw), updatedAt: new Date() }).where(eq(users.id, uid));
+    const changed = await getDb()
+      .update(users)
+      .set({ passwordHash: await hashPassword(pw), updatedAt: new Date() })
+      .where(and(eq(users.id, uid), eq(users.salonId, admin.salonId)))
+      .returning({ id: users.id });
+    if (changed.length === 0) throw new DomainError("not_found", "Сотрудник не найден.");
     await deleteUserSessions(uid);
-    await audit(getDb(), admin.id, "user.reset_password", "user", uid);
+    await audit(getDb(), admin.salonId, admin.id, "user.reset_password", "user", uid);
     return { ok: true, message: "Пароль изменён, активные сессии завершены." };
   });
 }
@@ -253,12 +283,17 @@ export async function setUserActiveAction(userId: string, active: boolean): Prom
       const [{ n }] = (await db
         .select({ n: sql<number>`count(*)::int` })
         .from(users)
-        .where(and(eq(users.role, "admin"), eq(users.active, true), ne(users.id, uid)))) as [{ n: number }];
+        .where(and(eq(users.salonId, admin.salonId), eq(users.role, "admin"), eq(users.active, true), ne(users.id, uid)))) as [{ n: number }];
       if (n === 0) throw new DomainError("validation", "Должен остаться хотя бы один активный администратор.");
     }
-    await db.update(users).set({ active, updatedAt: new Date() }).where(eq(users.id, uid));
+    const changed = await db
+      .update(users)
+      .set({ active, updatedAt: new Date() })
+      .where(and(eq(users.id, uid), eq(users.salonId, admin.salonId)))
+      .returning({ id: users.id });
+    if (changed.length === 0) throw new DomainError("not_found", "Сотрудник не найден.");
     if (!active) await deleteUserSessions(uid);
-    await audit(db, admin.id, active ? "user.activate" : "user.deactivate", "user", uid);
+    await audit(db, admin.salonId, admin.id, active ? "user.activate" : "user.deactivate", "user", uid);
     revalidatePath("/staff/users");
     return { ok: true, message: active ? "Доступ включён." : "Доступ отключён." };
   });
@@ -271,6 +306,9 @@ const socialSchema = z.array(z.object({ label: z.string().trim().min(1).max(40),
 
 const settingsSchema = z.object({
   name: z.string().trim().min(1).max(80),
+  slug: z.string().trim().toLowerCase(),
+  theme: z.enum(SALON_THEMES),
+  instagramUrl: optText(300).refine((v) => v === null || /^https:\/\/(www\.)?instagram\.com\/[A-Za-z0-9_.]+\/?$/.test(v), "Ссылка вида https://www.instagram.com/имя/"),
   tagline: optText(160),
   about: optText(1000),
   address: optText(200),
@@ -282,7 +320,6 @@ const settingsSchema = z.object({
   minLeadMin: z.coerce.number().int().min(0).max(10080),
   horizonDays: z.coerce.number().int().min(1).max(365),
   cancelCutoffHours: z.coerce.number().int().min(0).max(168),
-  mode: z.enum(["demo", "live"]),
   barbersCanBlock: z.boolean(),
   privacyController: optText(300),
   privacyContact: optText(300),
@@ -296,24 +333,35 @@ export async function saveSettingsAction(input: z.input<typeof settingsSchema>):
     const data = settingsSchema.parse(input);
     const db = getDb();
     await db.transaction(async (tx) => {
-      const [current] = await tx.select().from(salonSettings).for("update");
-      if (!current) throw new DomainError("not_found", "Настройки не найдены.");
+      const [current] = await tx.select().from(salons).where(eq(salons.id, user.salonId)).for("update");
+      if (!current) throw new DomainError("not_found", "Салон не найден.");
+      if (data.slug !== current.slug) {
+        const problem = slugProblem(data.slug);
+        if (problem) throw new DomainError("validation", problem, { fields: { slug: problem } });
+        const [taken] = await tx.select({ id: salons.id }).from(salons).where(eq(salons.slug, data.slug));
+        if (taken) throw new DomainError("validation", "Этот адрес уже занят.", { fields: { slug: "Этот адрес уже занят." } });
+      }
       if (data.timezone !== current.timezone) {
         // Changing the zone would silently move every stored wall-clock schedule.
-        const [{ n }] = (await tx.select({ n: sql<number>`count(*)::int` }).from(bookings)) as [{ n: number }];
+        const [{ n }] = (await tx
+          .select({ n: sql<number>`count(*)::int` })
+          .from(bookings)
+          .where(eq(bookings.salonId, user.salonId))) as [{ n: number }];
         if (n > 0) {
           throw new DomainError(
             "validation",
-            "Часовой пояс нельзя менять, когда в базе уже есть записи: это изменит смысл сохранённых дат. См. процедуру в README.",
+            "Часовой пояс нельзя менять, когда уже есть записи: это изменит смысл сохранённых дат. См. процедуру в README.",
           );
         }
       }
-      if (data.mode === "live" && (!data.privacyController || !data.privacyContact || !data.retentionDays)) {
-        throw new DomainError("validation", "Для режима live заполните оператора персональных данных, контакт и срок хранения.");
+      if (current.published && (!data.privacyController || !data.privacyContact || !data.retentionDays)) {
+        throw new DomainError("validation", "Опубликованной странице нужны оператор персональных данных, контакт и срок хранения.");
       }
-      await tx.update(salonSettings).set({ ...data, updatedAt: new Date() });
-      await audit(tx, user.id, "settings.update", "salon", null, {
-        changed: Object.keys(data).filter((k) => JSON.stringify((current as Record<string, unknown>)[k]) !== JSON.stringify((data as Record<string, unknown>)[k])),
+      await tx.update(salons).set({ ...data, updatedAt: new Date() }).where(eq(salons.id, user.salonId));
+      await audit(tx, user.salonId, user.id, "settings.update", "salon", user.salonId, {
+        changed: Object.keys(data).filter(
+          (k) => JSON.stringify((current as Record<string, unknown>)[k]) !== JSON.stringify((data as Record<string, unknown>)[k]),
+        ),
       });
     });
     revalidatePath("/", "layout");

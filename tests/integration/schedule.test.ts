@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/lib/db/client";
-import { auditLog, bookings, salonSettings } from "@/lib/db/schema";
+import { auditLog, bookings, salons } from "@/lib/db/schema";
 import { clientPolicy, loadOfferings, loadSchedule, mergeSlots, dayStatus } from "@/lib/server/availability";
 import { cancelBooking, createBooking } from "@/lib/server/bookings";
 import { DomainError } from "@/lib/server/errors";
@@ -11,7 +11,7 @@ import {
   setBarberActive,
   setDateException,
 } from "@/lib/server/schedule-admin";
-import { getSettings } from "@/lib/server/settings";
+import { getSalon } from "@/lib/server/settings";
 import { DAY1, NOW, at, buildWorld, clientInput, resetDatabase, type World } from "./harness";
 
 let w: World;
@@ -22,9 +22,9 @@ beforeEach(async () => {
 
 async function slotsOn(date: string, barberId: string, serviceId = w.cut.id) {
   const db = getDb();
-  const settings = await getSettings(db);
+  const settings = await getSalon(db, w.salon.id);
   const offerings = await loadOfferings(db, serviceId, [barberId]);
-  const data = await loadSchedule(db, settings.timezone, [barberId], date, date);
+  const data = await loadSchedule(db, settings, [barberId], date, date);
   return mergeSlots(data, offerings, date, clientPolicy(settings, NOW)).map((s) => s.startAt);
 }
 
@@ -60,9 +60,9 @@ describe("A04 breaks, vacations, closures", () => {
     expect(await slotsOn(DAY1, w.anvar.id)).toEqual([]);
     expect(await slotsOn(DAY1, w.bekzod.id)).toEqual([]);
     const db = getDb();
-    const settings = await getSettings(db);
+    const settings = await getSalon(db, w.salon.id);
     const offerings = await loadOfferings(db, w.cut.id);
-    const data = await loadSchedule(db, settings.timezone, offerings.map((o) => o.barberId), DAY1, "2030-01-09");
+    const data = await loadSchedule(db, settings, offerings.map((o) => o.barberId), DAY1, "2030-01-09");
     expect(dayStatus(data, offerings, DAY1, clientPolicy(settings, NOW))).toBe("closed");
     expect(dayStatus(data, offerings, "2030-01-09", clientPolicy(settings, NOW))).toBe("available");
   });
@@ -88,7 +88,7 @@ describe("A04 breaks, vacations, closures", () => {
   it("a barber can't block another barber's time, nor any time when disabled by admin", async () => {
     const e1 = await errorOf(createTimeBlock({ actor: w.barberActor, barberId: w.bekzod.id, kind: "break", startAt: new Date(at(DAY1, "13:00")), endAt: new Date(at(DAY1, "14:00")) }));
     expect(e1.code).toBe("forbidden");
-    await getDb().update(salonSettings).set({ barbersCanBlock: false });
+    await getDb().update(salons).set({ barbersCanBlock: false }).where(eq(salons.id, w.salon.id));
     const e2 = await errorOf(createTimeBlock({ actor: w.barberActor, barberId: w.anvar.id, kind: "break", startAt: new Date(at(DAY1, "13:00")), endAt: new Date(at(DAY1, "14:00")) }));
     expect(e2.code).toBe("forbidden");
   });

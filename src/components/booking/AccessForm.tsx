@@ -3,7 +3,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { apiPost } from "@/lib/client/api";
 
-export function AccessForm({ token, salonName }: { token: string; salonName: string }) {
+export function AccessForm({ token }: { token: string }) {
   const router = useRouter();
   const [last4, setLast4] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -25,9 +25,9 @@ export function AccessForm({ token, salonName }: { token: string; salonName: str
 
   return (
     <div className="max-w-md">
-      <h1 className="display text-5xl">Ваша запись</h1>
+      <h1 className="display text-4xl">Ваша запись</h1>
       <p className="mt-4">
-        Чтобы открыть запись в {salonName}, введите последние 4 цифры телефона, который вы указали при записи.
+        Чтобы открыть запись, введите последние 4 цифры телефона, который вы указали при записи.
       </p>
       <form onSubmit={submit} className="mt-6 space-y-4" noValidate>
         <div>

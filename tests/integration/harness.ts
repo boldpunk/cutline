@@ -2,7 +2,7 @@
 // and a small, fully known salon. Times are relative to a fixed "now".
 import postgres from "postgres";
 import { closeDb, getDb } from "@/lib/db/client";
-import { barberServices, barbers, salonSettings, services, users, weeklyAvailability } from "@/lib/db/schema";
+import { barberServices, barbers, salons, services, users, weeklyAvailability } from "@/lib/db/schema";
 import { zonedToUtc } from "@/lib/domain/time";
 import { migrate } from "../../scripts/migrate";
 
@@ -30,60 +30,66 @@ export async function resetDatabase(): Promise<void> {
 export type World = Awaited<ReturnType<typeof buildWorld>>;
 
 /** Two barbers working 10:00–20:00 every day; salon open 10:00–20:00. */
-export async function buildWorld() {
+export async function buildWorld(slug = "test-salon") {
   const db = getDb();
-  await db.insert(salonSettings).values({
-    id: 1,
-    name: "Test salon",
-    timezone: TZ,
-    slotStepMin: 15,
-    minLeadMin: 60,
-    horizonDays: 60,
-    cancelCutoffHours: 12,
-    mode: "demo",
-    barbersCanBlock: true,
-    consentVersion: "test-1",
-  });
+  const [salon] = await db
+    .insert(salons)
+    .values({
+      slug,
+      published: true,
+      name: `Salon ${slug}`,
+      timezone: TZ,
+      slotStepMin: 15,
+      minLeadMin: 60,
+      horizonDays: 60,
+      cancelCutoffHours: 12,
+      mode: "demo",
+      barbersCanBlock: true,
+      consentVersion: "test-1",
+    })
+    .returning();
+  const salonId = salon!.id;
   const [cut, beard] = await db
     .insert(services)
     .values([
-      { name: "Haircut", durationMin: 60, priceUzs: 150_000, bufferAfterMin: 15, sortOrder: 1 },
-      { name: "Beard", durationMin: 30, priceUzs: 90_000, sortOrder: 2 },
+      { salonId, name: "Haircut", durationMin: 60, priceUzs: 150_000, bufferAfterMin: 15, sortOrder: 1 },
+      { salonId, name: "Beard", durationMin: 30, priceUzs: 90_000, sortOrder: 2 },
     ])
     .returning();
   const [a, b] = await db
     .insert(barbers)
     .values([
-      { name: "Anvar", sortOrder: 1 },
-      { name: "Bekzod", sortOrder: 2 },
+      { salonId, name: "Anvar", sortOrder: 1 },
+      { salonId, name: "Bekzod", sortOrder: 2 },
     ])
     .returning();
   await db.insert(barberServices).values([
-    { barberId: a!.id, serviceId: cut!.id },
-    { barberId: b!.id, serviceId: cut!.id },
-    { barberId: a!.id, serviceId: beard!.id },
-    { barberId: b!.id, serviceId: beard!.id, priceUzs: 100_000 },
+    { salonId, barberId: a!.id, serviceId: cut!.id },
+    { salonId, barberId: b!.id, serviceId: cut!.id },
+    { salonId, barberId: a!.id, serviceId: beard!.id },
+    { salonId, barberId: b!.id, serviceId: beard!.id, priceUzs: 100_000 },
   ]);
   const days = [1, 2, 3, 4, 5, 6, 7];
   await db.insert(weeklyAvailability).values([
-    ...days.map((weekday) => ({ barberId: null, weekday, startMin: 600, endMin: 1200 })),
-    ...days.map((weekday) => ({ barberId: a!.id, weekday, startMin: 600, endMin: 1200 })),
-    ...days.map((weekday) => ({ barberId: b!.id, weekday, startMin: 600, endMin: 1200 })),
+    ...days.map((weekday) => ({ salonId, barberId: null, weekday, startMin: 600, endMin: 1200 })),
+    ...days.map((weekday) => ({ salonId, barberId: a!.id, weekday, startMin: 600, endMin: 1200 })),
+    ...days.map((weekday) => ({ salonId, barberId: b!.id, weekday, startMin: 600, endMin: 1200 })),
   ]);
   const [admin, barberUser] = await db
     .insert(users)
     .values([
-      { email: "admin@test", name: "Admin", passwordHash: "x", role: "admin" },
-      { email: "anvar@test", name: "Anvar", passwordHash: "x", role: "barber", barberId: a!.id },
+      { salonId, email: `admin@${slug}`, name: "Admin", passwordHash: "x", role: "admin" },
+      { salonId, email: `anvar@${slug}`, name: "Anvar", passwordHash: "x", role: "barber", barberId: a!.id },
     ])
     .returning();
   return {
+    salon: salon!,
     cut: cut!,
     beard: beard!,
     anvar: a!,
     bekzod: b!,
-    adminActor: { type: "staff" as const, userId: admin!.id, role: "admin" as const, barberId: null },
-    barberActor: { type: "staff" as const, userId: barberUser!.id, role: "barber" as const, barberId: a!.id },
+    adminActor: { type: "staff" as const, userId: admin!.id, role: "admin" as const, barberId: null, salonId },
+    barberActor: { type: "staff" as const, userId: barberUser!.id, role: "barber" as const, barberId: a!.id, salonId },
   };
 }
 

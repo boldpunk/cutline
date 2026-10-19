@@ -169,7 +169,7 @@ export function MonthCalendar({
                       isSelected
                         ? "border-ink bg-ink text-paper"
                         : status === "available"
-                          ? "border-ink/70 bg-white font-semibold hover:bg-accent"
+                          ? "border-ink/70 bg-white font-semibold hover:bg-accent-soft"
                           : status === "out_of_range"
                             ? "border-transparent text-muted"
                             : "border-line bg-paper text-muted-text",
@@ -183,7 +183,7 @@ export function MonthCalendar({
                       </span>
                     )}
                     {status === "available" && (
-                      <span aria-hidden className={`mt-1 text-[10px] leading-none ${isSelected ? "text-accent" : "text-success"}`}>
+                      <span aria-hidden className={`mt-1 text-[10px] leading-none ${isSelected ? "text-highlight" : "text-success"}`}>
                         {isSelected ? "✓" : "●"}
                       </span>
                     )}

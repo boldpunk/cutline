@@ -13,7 +13,7 @@ async function login(page: Page, email: string) {
 
 async function firstSlot(request: APIRequestContext, serviceName = "Мужская стрижка", barberName?: string) {
   // Discover ids from the catalog serialized into the /book page.
-  const book = await (await request.get("/book")).text();
+  const book = await (await request.get("/demo/book")).text();
   const svc = [...book.matchAll(/\\"id\\":\\"([0-9a-f-]{36})\\",\\"name\\":\\"([^\\]+)\\"/g)].find((m) => m[2] === serviceName)!;
   const sid = svc[1]!;
   let barber = "any";

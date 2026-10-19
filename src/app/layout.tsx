@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
-import "@fontsource-variable/oswald/index.css";
-import "@fontsource-variable/inter/index.css";
+import "@fontsource-variable/unbounded/index.css";
+import "@fontsource-variable/manrope/index.css";
 import "./globals.css";
 import { env } from "@/lib/server/env";
 

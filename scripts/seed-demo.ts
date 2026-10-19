@@ -3,10 +3,11 @@
 // Never run against a live salon database (the script refuses if mode = 'live').
 import { randomUUID } from "node:crypto";
 import { closeDb, getDb } from "@/lib/db/client";
+import { eq } from "drizzle-orm";
 import {
   barberServices,
   barbers,
-  salonSettings,
+  salons,
   services,
   timeBlocks,
   users,
@@ -17,7 +18,8 @@ import { addDays, todayIn, utcToZoned, zonedToUtc } from "@/lib/domain/time";
 import { clientPolicy, loadOfferings, loadSchedule, slotsFor } from "@/lib/server/availability";
 import { createBooking } from "@/lib/server/bookings";
 import { hashPassword } from "@/lib/server/passwords";
-import { getSettings } from "@/lib/server/settings";
+import { getSalon } from "@/lib/server/settings";
+import { registerSalon } from "@/lib/server/onboarding";
 import { migrate } from "./migrate";
 
 const TZ = "Asia/Tashkent";
@@ -26,15 +28,18 @@ const DEMO_PASSWORD = process.env.DEMO_PASSWORD ?? "demo-cutline-2026";
 export async function seedDemo(opts: { withBookings?: boolean; log?: (s: string) => void } = {}) {
   const log = opts.log ?? console.log;
   const db = getDb();
-  const [existing] = await db.select().from(salonSettings);
-  if (existing?.mode === "live") throw new Error("Refusing to seed demo data into a live database.");
+  const [existing] = await db.select().from(salons).where(eq(salons.slug, "demo"));
   if (existing) {
     log("Demo data already present — skipping. (Drop the database to reseed.)");
     return;
   }
 
-  await db.insert(salonSettings).values({
-    id: 1,
+  const [demo] = await db
+    .insert(salons)
+    .values({
+    slug: "demo",
+    published: true,
+    theme: "pole",
     name: "CUTLINE",
     tagline: "Мужские стрижки и борода по записи. Время и цена известны заранее.",
     about:
@@ -54,18 +59,21 @@ export async function seedDemo(opts: { withBookings?: boolean; log?: (s: string)
     privacyContact: null,
     retentionDays: 365,
     consentVersion: "demo-2026-10",
-  });
+  })
+    .returning();
+  const salonId = demo!.id;
 
   // Salon hours: Mon–Sat 10–21, Sun 11–19 (demo values).
   await db.insert(weeklyAvailability).values([
-    ...[1, 2, 3, 4, 5, 6].map((weekday) => ({ barberId: null, weekday, startMin: 600, endMin: 1260 })),
-    { barberId: null, weekday: 7, startMin: 660, endMin: 1140 },
+    ...[1, 2, 3, 4, 5, 6].map((weekday) => ({ salonId, barberId: null, weekday, startMin: 600, endMin: 1260 })),
+    { salonId, barberId: null, weekday: 7, startMin: 660, endMin: 1140 },
   ]);
 
   const svc = await db
     .insert(services)
     .values([
       {
+        salonId,
         name: "Мужская стрижка",
         description: "Стрижка ножницами и машинкой, мытьё головы, укладка.",
         category: "Стрижки",
@@ -76,6 +84,7 @@ export async function seedDemo(opts: { withBookings?: boolean; log?: (s: string)
         isDemo: true,
       },
       {
+        salonId,
         name: "Оформление бороды",
         description: "Коррекция формы, контуры, горячее полотенце.",
         category: "Борода",
@@ -86,6 +95,7 @@ export async function seedDemo(opts: { withBookings?: boolean; log?: (s: string)
         isDemo: true,
       },
       {
+        salonId,
         name: "Стрижка машинкой",
         description: "Одна или две насадки, окантовка.",
         category: "Стрижки",
@@ -96,6 +106,7 @@ export async function seedDemo(opts: { withBookings?: boolean; log?: (s: string)
         isDemo: true,
       },
       {
+        salonId,
         name: "Стрижка + борода",
         description: "Мужская стрижка и оформление бороды за один визит.",
         category: "Комплекс",
@@ -112,50 +123,51 @@ export async function seedDemo(opts: { withBookings?: boolean; log?: (s: string)
   const team = await db
     .insert(barbers)
     .values([
-      { name: "Тимур", specialization: "Классические стрижки", bio: "Вымышленный мастер для демонстрации.", sortOrder: 1, isDemo: true },
-      { name: "Алишер", specialization: "Фейды и борода", bio: "Вымышленный мастер для демонстрации.", sortOrder: 2, isDemo: true },
-      { name: "Дмитрий", specialization: "Короткие стрижки", bio: "Вымышленный мастер для демонстрации.", sortOrder: 3, isDemo: true },
+      { salonId, name: "Тимур", specialization: "Классические стрижки", bio: "Вымышленный мастер для демонстрации.", sortOrder: 1, isDemo: true },
+      { salonId, name: "Алишер", specialization: "Фейды и борода", bio: "Вымышленный мастер для демонстрации.", sortOrder: 2, isDemo: true },
+      { salonId, name: "Дмитрий", specialization: "Короткие стрижки", bio: "Вымышленный мастер для демонстрации.", sortOrder: 3, isDemo: true },
     ])
     .returning();
   const [timur, alisher, dmitry] = team as [typeof team[number], typeof team[number], typeof team[number]];
 
   await db.insert(barberServices).values([
-    { barberId: timur.id, serviceId: byName["Мужская стрижка"]!.id },
-    { barberId: timur.id, serviceId: byName["Стрижка машинкой"]!.id },
-    { barberId: timur.id, serviceId: byName["Стрижка + борода"]!.id },
+    { salonId, barberId: timur.id, serviceId: byName["Мужская стрижка"]!.id },
+    { salonId, barberId: timur.id, serviceId: byName["Стрижка машинкой"]!.id },
+    { salonId, barberId: timur.id, serviceId: byName["Стрижка + борода"]!.id },
     // Demonstrates a per-barber price.
-    { barberId: alisher.id, serviceId: byName["Мужская стрижка"]!.id, priceUzs: 170_000 },
-    { barberId: alisher.id, serviceId: byName["Оформление бороды"]!.id },
-    { barberId: alisher.id, serviceId: byName["Стрижка + борода"]!.id, priceUzs: 240_000 },
-    { barberId: dmitry.id, serviceId: byName["Мужская стрижка"]!.id },
-    { barberId: dmitry.id, serviceId: byName["Стрижка машинкой"]!.id },
-    { barberId: dmitry.id, serviceId: byName["Оформление бороды"]!.id },
+    { salonId, barberId: alisher.id, serviceId: byName["Мужская стрижка"]!.id, priceUzs: 170_000 },
+    { salonId, barberId: alisher.id, serviceId: byName["Оформление бороды"]!.id },
+    { salonId, barberId: alisher.id, serviceId: byName["Стрижка + борода"]!.id, priceUzs: 240_000 },
+    { salonId, barberId: dmitry.id, serviceId: byName["Мужская стрижка"]!.id },
+    { salonId, barberId: dmitry.id, serviceId: byName["Стрижка машинкой"]!.id },
+    { salonId, barberId: dmitry.id, serviceId: byName["Оформление бороды"]!.id },
   ]);
 
   await db.insert(weeklyAvailability).values([
     // Тимур: Mon–Fri 10–19 with a 14–15 lunch break
     ...[1, 2, 3, 4, 5].flatMap((weekday) => [
-      { barberId: timur.id, weekday, startMin: 600, endMin: 840 },
-      { barberId: timur.id, weekday, startMin: 900, endMin: 1140 },
+      { salonId, barberId: timur.id, weekday, startMin: 600, endMin: 840 },
+      { salonId, barberId: timur.id, weekday, startMin: 900, endMin: 1140 },
     ]),
     // Алишер: Tue–Sat 12–21
-    ...[2, 3, 4, 5, 6].map((weekday) => ({ barberId: alisher.id, weekday, startMin: 720, endMin: 1260 })),
+    ...[2, 3, 4, 5, 6].map((weekday) => ({ salonId, barberId: alisher.id, weekday, startMin: 720, endMin: 1260 })),
     // Дмитрий: Wed–Sun 10–18 (salon opens 11 on Sunday → effective 11–18)
-    ...[3, 4, 5, 6, 7].map((weekday) => ({ barberId: dmitry.id, weekday, startMin: 600, endMin: 1080 })),
+    ...[3, 4, 5, 6, 7].map((weekday) => ({ salonId, barberId: dmitry.id, weekday, startMin: 600, endMin: 1080 })),
   ]);
 
   const pw = await hashPassword(DEMO_PASSWORD);
   await db.insert(users).values([
-    { email: "admin@demo.cutline", name: "Администратор (демо)", passwordHash: pw, role: "admin" },
-    { email: "timur@demo.cutline", name: "Тимур", passwordHash: pw, role: "barber", barberId: timur.id },
-    { email: "alisher@demo.cutline", name: "Алишер", passwordHash: pw, role: "barber", barberId: alisher.id },
-    { email: "dmitry@demo.cutline", name: "Дмитрий", passwordHash: pw, role: "barber", barberId: dmitry.id },
+    { salonId, email: "admin@demo.cutline", name: "Администратор (демо)", passwordHash: pw, role: "admin" },
+    { salonId, email: "timur@demo.cutline", name: "Тимур", passwordHash: pw, role: "barber", barberId: timur.id },
+    { salonId, email: "alisher@demo.cutline", name: "Алишер", passwordHash: pw, role: "barber", barberId: alisher.id },
+    { salonId, email: "dmitry@demo.cutline", name: "Дмитрий", passwordHash: pw, role: "barber", barberId: dmitry.id },
   ]);
 
   // A personal break for Алишер two days from now, 15:00–16:00.
   const today = todayIn(TZ);
   const d2 = addDays(today, 2);
   await db.insert(timeBlocks).values({
+    salonId,
     barberId: alisher.id,
     kind: "break",
     startAt: new Date(zonedToUtc(d2, 900, TZ)),
@@ -166,7 +178,7 @@ export async function seedDemo(opts: { withBookings?: boolean; log?: (s: string)
   if (opts.withBookings !== false) {
     // A handful of fictional bookings over the next days, created through the
     // normal booking path so they obey every rule.
-    const settings = await getSettings(db);
+    const settings = await getSalon(db, salonId);
     const now = Date.now();
     const policy = clientPolicy(settings, now);
     let n = 0;
@@ -174,7 +186,7 @@ export async function seedDemo(opts: { withBookings?: boolean; log?: (s: string)
       const date = addDays(today, day);
       for (const svcName of ["Мужская стрижка", "Оформление бороды", "Стрижка + борода"]) {
         const offerings = await loadOfferings(db, byName[svcName]!.id);
-        const data = await loadSchedule(db, TZ, offerings.map((o) => o.barberId), date, date);
+        const data = await loadSchedule(db, settings, offerings.map((o) => o.barberId), date, date);
         const o = offerings[(day + n) % offerings.length]!;
         const slots = slotsFor(data, o, date, policy);
         const start = slots[(day * 3 + n * 5) % Math.max(1, slots.length)];
@@ -191,16 +203,31 @@ export async function seedDemo(opts: { withBookings?: boolean; log?: (s: string)
           consentVersion: settings.consentVersion,
           idempotencyKey: randomUUID(),
           source: "staff",
+          actorSalonId: salonId,
         });
         log(`demo booking ${n}: ${o.barberName}, ${svcName}, ${utcToZoned(start, TZ).date}`);
       }
     }
   }
 
+  // First real client as an unpublished draft: only facts we have (name from the
+  // Instagram handle, the Instagram link). The owner fills in the rest and publishes.
+  await registerSalon({
+    businessName: "Morki Barber",
+    slug: "morki",
+    ownerName: "Morki",
+    email: "morki@demo.cutline",
+    password: DEMO_PASSWORD,
+    instagramUrl: "https://www.instagram.com/morki_barber/",
+    ownerIsBarber: true,
+  });
+  await db.update(salons).set({ theme: "brass" }).where(eq(salons.slug, "morki"));
+
   log("");
   log("Demo data created (all people, prices and bookings are fictional).");
   log(`Staff login: admin@demo.cutline / ${DEMO_PASSWORD}`);
   log(`Barbers:     timur@demo.cutline, alisher@demo.cutline, dmitry@demo.cutline (same password)`);
+  log(`Draft salon: /morki — owner morki@demo.cutline (same password), not published yet`);
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

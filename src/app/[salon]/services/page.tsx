@@ -1,18 +1,22 @@
+import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { DurationRange, PriceRange } from "@/components/site/PriceRange";
 import { formatDuration, formatUzs } from "@/lib/domain/money";
-import { getCatalog } from "@/lib/server/public-data";
+import { getCatalog, loadSalonPage } from "@/lib/server/public-data";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "Услуги и цены",
   description: "Полный прайс барбершопа: длительность, описание и стоимость каждой услуги.",
-  alternates: { canonical: "/services" },
 };
 
-export default async function ServicesPage() {
-  const { services, barbers } = await getCatalog();
+export default async function ServicesPage({ params }: { params: Promise<{ salon: string }> }) {
+  const page = await loadSalonPage((await params).salon);
+  if (!page) notFound();
+  const settings = page.salon;
+  const base = `/${settings.slug}`;
+  const { services, barbers } = await getCatalog(settings.id);
   const byCategory = new Map<string, typeof services>();
   for (const s of services) {
     const key = s.category ?? "Услуги";
@@ -22,7 +26,7 @@ export default async function ServicesPage() {
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-12 md:py-16">
-      <h1 className="display text-6xl md:text-7xl">Услуги и цены</h1>
+      <h1 className="display text-4xl md:text-5xl">Услуги и цены</h1>
       <p className="mt-4 max-w-2xl text-muted-text">
         Цены указаны в сумах. Если цена или длительность зависит от мастера, это указано в строке услуги; при записи вы
         увидите точную сумму до подтверждения.
@@ -33,7 +37,7 @@ export default async function ServicesPage() {
       {services.length === 0 && <p className="mt-10 text-muted-text">Услуги ещё не опубликованы.</p>}
       {[...byCategory.entries()].map(([cat, list]) => (
         <section key={cat} className="mt-12" aria-labelledby={`cat-${cat}`}>
-          <h2 id={`cat-${cat}`} className="display border-b-2 border-ink pb-2 text-3xl">
+          <h2 id={`cat-${cat}`} className="display border-b-2 border-ink pb-2 text-2xl">
             {cat}
           </h2>
           <ul className="divide-y divide-line">
@@ -65,7 +69,7 @@ export default async function ServicesPage() {
                   <p className="text-lg font-semibold tabular-nums sm:text-right">
                     <PriceRange min={s.minPrice} max={s.maxPrice} />
                   </p>
-                  <Link href={`/book?service=${s.id}&step=barber`} className="btn btn-dark btn-sm">
+                  <Link href={`${base}/book?service=${s.id}&step=barber`} className="btn btn-dark btn-sm">
                     Записаться
                   </Link>
                 </div>

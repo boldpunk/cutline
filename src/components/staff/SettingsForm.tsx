@@ -2,11 +2,16 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { heroPhotoAction, saveSettingsAction } from "@/app/staff/(app)/admin-actions";
+import type { SalonTheme } from "@/lib/db/schema";
 import type { ActionResult } from "@/lib/server/action-result";
+import { THEMES } from "@/lib/themes";
 import { ResultNote } from "./ResultNote";
 
 export type SettingsValues = {
   name: string;
+  slug: string;
+  theme: SalonTheme;
+  instagramUrl: string;
   tagline: string;
   about: string;
   address: string;
@@ -18,7 +23,6 @@ export type SettingsValues = {
   minLeadMin: number;
   horizonDays: number;
   cancelCutoffHours: number;
-  mode: "demo" | "live";
   barbersCanBlock: boolean;
   privacyController: string;
   privacyContact: string;
@@ -42,7 +46,7 @@ function Text({ id, label, value, onChange, hint, max, area }: { id: string; lab
   );
 }
 
-export function SettingsForm({ initial, tzLocked, tz }: { initial: SettingsValues; tzLocked: boolean; tz: string }) {
+export function SettingsForm({ initial, tzLocked, tz, host }: { initial: SettingsValues; tzLocked: boolean; tz: string; host: string }) {
   const router = useRouter();
   const [v, setV] = useState(initial);
   const [pending, start] = useTransition();
@@ -64,6 +68,23 @@ export function SettingsForm({ initial, tzLocked, tz }: { initial: SettingsValue
       <fieldset className="grid gap-3 rounded-xl border border-line bg-card p-4 sm:grid-cols-2">
         <legend className="px-1 font-semibold">Салон на сайте</legend>
         <Text id="s-name" label="Название" value={v.name} max={80} onChange={(name) => set({ name })} />
+        <div>
+          <label htmlFor="s-slug" className="field-label text-sm">
+            Адрес страницы
+          </label>
+          <div className="flex items-center rounded-lg border-[1.5px] border-control bg-white pl-3 focus-within:outline focus-within:outline-3 focus-within:outline-ink">
+            <span className="shrink-0 text-muted-text">{host}/</span>
+            <input
+              id="s-slug"
+              className="min-h-11 min-w-0 flex-1 bg-transparent py-2 pr-3 outline-none"
+              maxLength={40}
+              value={v.slug}
+              onChange={(e) => set({ slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "") })}
+            />
+          </div>
+          <p className="field-hint">Латиница, цифры и дефис. После смены старые ссылки перестанут работать.</p>
+        </div>
+        <Text id="s-ig" label="Instagram" value={v.instagramUrl} max={300} onChange={(instagramUrl) => set({ instagramUrl })} hint="https://www.instagram.com/имя/" />
         <Text id="s-phone" label="Телефон салона" value={v.phone} max={40} onChange={(phone) => set({ phone })} hint="Пусто — блок скрыт на сайте" />
         <div className="sm:col-span-2">
           <Text id="s-tag" label="Короткое обещание (первый экран)" value={v.tagline} max={160} onChange={(tagline) => set({ tagline })} />
@@ -89,6 +110,32 @@ export function SettingsForm({ initial, tzLocked, tz }: { initial: SettingsValue
               + ссылка
             </button>
           )}
+        </div>
+      </fieldset>
+
+      <fieldset className="rounded-xl border border-line bg-card p-4">
+        <legend className="px-1 font-semibold">Стиль страницы</legend>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {(Object.keys(THEMES) as SalonTheme[]).map((key) => {
+            const t = THEMES[key];
+            return (
+              <label
+                key={key}
+                className={`flex cursor-pointer flex-col gap-2 rounded-xl border-2 p-3 ${v.theme === key ? "border-ink bg-white" : "border-line"}`}
+              >
+                <span className="flex items-center gap-2">
+                  <input type="radio" name="theme" className="h-4 w-4 accent-ink" checked={v.theme === key} onChange={() => set({ theme: key })} />
+                  <span className="font-semibold">{t.label}</span>
+                </span>
+                <span aria-hidden className="flex h-10 overflow-hidden rounded-lg border border-line">
+                  {t.swatch.map((c) => (
+                    <span key={c} className="flex-1" style={{ background: c }} />
+                  ))}
+                </span>
+                <span className="text-xs text-muted-text">{t.note}</span>
+              </label>
+            );
+          })}
         </div>
       </fieldset>
 
@@ -134,7 +181,7 @@ export function SettingsForm({ initial, tzLocked, tz }: { initial: SettingsValue
       </fieldset>
 
       <fieldset className="grid gap-3 rounded-xl border border-line bg-card p-4 sm:grid-cols-2">
-        <legend className="px-1 font-semibold">Персональные данные и режим</legend>
+        <legend className="px-1 font-semibold">Персональные данные</legend>
         <Text id="s-ctrl" label="Оператор персональных данных" value={v.privacyController} max={300} onChange={(privacyController) => set({ privacyController })} hint="Юр. лицо или ИП владельца" />
         <Text id="s-pc" label="Контакт по вопросам данных" value={v.privacyContact} max={300} onChange={(privacyContact) => set({ privacyContact })} />
         <div>
@@ -145,17 +192,6 @@ export function SettingsForm({ initial, tzLocked, tz }: { initial: SettingsValue
           <p className="field-hint">После срока имя, телефон и комментарий удаляются фоновым процессом.</p>
         </div>
         <Text id="s-cv" label="Версия текста согласия" value={v.consentVersion} max={40} onChange={(consentVersion) => set({ consentVersion })} hint="Меняйте при изменении текста политики" />
-        <div className="sm:col-span-2">
-          <span className="field-label text-sm">Режим</span>
-          <label className="mr-6 inline-flex items-center gap-2 text-sm">
-            <input type="radio" name="mode" className="h-5 w-5 accent-ink" checked={v.mode === "demo"} onChange={() => set({ mode: "demo" })} />
-            Демо (плашка «Демонстрационный барбершоп», визиты не состоятся)
-          </label>
-          <label className="inline-flex items-center gap-2 text-sm">
-            <input type="radio" name="mode" className="h-5 w-5 accent-ink" checked={v.mode === "live"} onChange={() => set({ mode: "live" })} />
-            Live (реальный салон)
-          </label>
-        </div>
       </fieldset>
 
       <ResultNote result={result} tz={tz} />

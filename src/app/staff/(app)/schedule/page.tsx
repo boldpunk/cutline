@@ -4,18 +4,18 @@ import { WeeklyHoursEditor } from "@/components/staff/WeeklyHoursEditor";
 import { getDb } from "@/lib/db/client";
 import { minutesToHHMM, todayIn } from "@/lib/domain/time";
 import { formatLocalDate } from "@/lib/format";
-import { getSettings } from "@/lib/server/settings";
+import { getSalon } from "@/lib/server/settings";
 import { requireAdmin } from "@/lib/server/staff-auth";
 import { listBarbersBasic, listExceptions, weeklyHoursFor } from "@/lib/server/staff-data";
 
 export const metadata: Metadata = { title: "График" };
 
 export default async function SchedulePage() {
-  await requireAdmin();
-  const settings = await getSettings(getDb());
+  const user = await requireAdmin();
+  const settings = await getSalon(getDb(), user.salonId);
   const tz = settings.timezone;
   const today = todayIn(tz);
-  const [salonHours, barbers, exceptions] = await Promise.all([weeklyHoursFor(null), listBarbersBasic({ activeOnly: true }), listExceptions(today)]);
+  const [salonHours, barbers, exceptions] = await Promise.all([weeklyHoursFor(user.salonId, null), listBarbersBasic(user.salonId, { activeOnly: true }), listExceptions(user.salonId, today)]);
 
   // Group exception rows by (scope, date).
   const groups = new Map<string, { barberId: string | null; barberName: string | null; date: string; kind: string; ranges: string[]; note: string | null }>();

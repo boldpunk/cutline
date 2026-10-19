@@ -14,18 +14,20 @@
     "typecheck": "tsc --noEmit",
     "db:migrate": "tsx scripts/migrate.ts",
     "db:seed-demo": "tsx scripts/seed-demo.ts",
-    "db:init-live": "tsx scripts/init-live.ts",
     "create-admin": "tsx scripts/create-admin.ts",
     "worker": "tsx src/worker/index.ts",
     "test": "vitest run",
     "test:unit": "vitest run tests/unit",
     "test:integration": "vitest run tests/integration",
     "test:e2e": "playwright test",
-    "check:contrast": "tsx scripts/check-contrast.ts"
+    "check:contrast": "tsx scripts/check-contrast.ts",
+    "create-salon": "tsx scripts/create-salon.ts"
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.3.0",
+    "@fontsource-variable/manrope": "^5.3.0",
     "@fontsource-variable/oswald": "^5.3.0",
+    "@fontsource-variable/unbounded": "^5.3.0",
     "drizzle-orm": "^0.45.4",
     "libphonenumber-js": "^1.13.15",
     "next": "^16.4.2",

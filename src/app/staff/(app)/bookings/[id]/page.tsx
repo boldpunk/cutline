@@ -9,7 +9,7 @@ import { todayIn } from "@/lib/domain/time";
 import { formatDateTime, formatDateTimeCompact, formatTime, STATUS_LABELS } from "@/lib/format";
 import { loadOfferings } from "@/lib/server/availability";
 import { formatCode } from "@/lib/server/crypto";
-import { getSettings } from "@/lib/server/settings";
+import { getSalon } from "@/lib/server/settings";
 import { requireStaff } from "@/lib/server/staff-auth";
 import { bookingDetail } from "@/lib/server/staff-data";
 
@@ -30,7 +30,7 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
   if (!/^[0-9a-f-]{36}$/.test(id)) notFound();
   const detail = await bookingDetail(user, id);
   if (!detail) notFound();
-  const settings = await getSettings(getDb());
+  const settings = await getSalon(getDb(), user.salonId);
   const tz = settings.timezone;
   const { b, contact, barberName, events, outbox } = detail;
   const offers = user.role === "admin" && b.status === "confirmed" ? await loadOfferings(getDb(), b.serviceId) : [];

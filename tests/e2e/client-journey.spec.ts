@@ -1,7 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
 async function bookFirstSlot(page: Page, opts: { barber: string; phone: string; name: string }) {
-  await page.goto("/");
+  await page.goto("/demo");
   await page.getByRole("link", { name: "Записаться" }).first().click();
   await expect(page).toHaveURL(/\/book/);
   await page.getByRole("button", { name: /^Мужская стрижка/ }).click();
@@ -75,7 +75,7 @@ test("A01: client books, opens the private link with PIN, cancels", async ({ pag
 });
 
 test("browser Back keeps earlier choices", async ({ page }) => {
-  await page.goto("/book");
+  await page.goto("/demo/book");
   await page.getByRole("button", { name: /Оформление бороды/ }).click();
   await page.getByRole("button", { name: /Любой мастер/ }).click();
   await page.locator("#pick-time-h ~ div button[aria-pressed]").first().waitFor();

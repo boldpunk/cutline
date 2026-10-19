@@ -4,20 +4,20 @@ import { ServiceEditor } from "@/components/staff/ServiceEditor";
 import { getDb } from "@/lib/db/client";
 import { barberServices, services } from "@/lib/db/schema";
 import { formatDuration, formatUzs } from "@/lib/domain/money";
-import { getSettings } from "@/lib/server/settings";
+import { getSalon } from "@/lib/server/settings";
 import { requireAdmin } from "@/lib/server/staff-auth";
 import { listBarbersBasic } from "@/lib/server/staff-data";
 
 export const metadata: Metadata = { title: "Услуги" };
 
 export default async function ServicesAdminPage() {
-  await requireAdmin();
+  const user = await requireAdmin();
   const db = getDb();
   const [settings, list, links, barbers] = await Promise.all([
-    getSettings(db),
+    getSalon(db, user.salonId),
     db.select().from(services).orderBy(asc(services.sortOrder), asc(services.name)),
     db.select().from(barberServices),
-    listBarbersBasic(),
+    listBarbersBasic(user.salonId),
   ]);
   const empty = { id: null, name: "", description: "", category: "", durationMin: 60, priceUzs: 0, bufferBeforeMin: 0, bufferAfterMin: 0, sortOrder: list.length + 1, active: true };
   return (

@@ -26,5 +26,5 @@ export async function requireAdmin(): Promise<StaffUser> {
 }
 
 export function actorOf(user: StaffUser): StaffActor {
-  return { type: "staff", userId: user.id, role: user.role, barberId: user.barberId };
+  return { type: "staff", userId: user.id, role: user.role, barberId: user.barberId, salonId: user.salonId };
 }

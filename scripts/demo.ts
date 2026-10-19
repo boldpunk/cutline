@@ -71,10 +71,14 @@ async function main() {
     if (!announced && /Ready|ready/.test(text)) {
       announced = true;
       console.log(`
-  Сайт:     http://localhost:${appPort}
-  Кабинет:  http://localhost:${appPort}/staff
-            admin@demo.cutline / demo-cutline-2026  (администратор)
-            timur@demo.cutline / demo-cutline-2026  (мастер)
+  Платформа:     http://localhost:${appPort}
+  Новый бизнес:  http://localhost:${appPort}/start
+  Демо-салон:    http://localhost:${appPort}/demo
+  Morki Barber:  http://localhost:${appPort}/morki  (черновик — виден только после входа)
+  Кабинет:       http://localhost:${appPort}/staff
+                 admin@demo.cutline / demo-cutline-2026  (администратор демо)
+                 timur@demo.cutline / demo-cutline-2026  (мастер демо)
+                 morki@demo.cutline / demo-cutline-2026  (владелец Morki)
 
   Остановить: Ctrl+C. Данные лежат в ${dataDir} (удалите папку, чтобы начать заново).
 `);

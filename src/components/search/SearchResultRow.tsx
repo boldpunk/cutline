@@ -21,7 +21,7 @@ export function SearchResultRow({ hit, active = false }: { hit: SearchHit; activ
     <span className={`flex items-center gap-3 rounded-lg px-3 py-2.5 ${active ? "bg-ink text-paper" : ""}`}>
       <span
         aria-hidden
-        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-sm font-semibold ${active ? "bg-accent text-ink" : "bg-line/60 text-ink"}`}
+        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-sm font-semibold ${active ? "bg-accent text-on-accent" : "bg-line/60 text-ink"}`}
       >
         {ICONS[hit.doc.kind]}
       </span>
@@ -29,7 +29,7 @@ export function SearchResultRow({ hit, active = false }: { hit: SearchHit; activ
         <span className="block truncate font-medium">
           {highlightParts(hit.doc.title, hit.highlights).map((p, i) =>
             p.mark ? (
-              <mark key={i} className={`rounded-sm px-0.5 ${active ? "bg-accent text-ink" : "bg-accent/70 text-ink"}`}>
+              <mark key={i} className={`rounded-sm px-0.5 ${active ? "bg-highlight text-ink" : "bg-accent-soft text-ink"}`}>
                 {p.text}
               </mark>
             ) : (
@@ -39,7 +39,7 @@ export function SearchResultRow({ hit, active = false }: { hit: SearchHit; activ
         </span>
         {hit.doc.subtitle && <span className={`block truncate text-sm ${active ? "text-paper/80" : "text-muted-text"}`}>{hit.doc.subtitle}</span>}
       </span>
-      <span aria-hidden className={`shrink-0 text-sm ${active ? "text-accent" : "text-muted"}`}>
+      <span aria-hidden className={`shrink-0 text-sm ${active ? "text-highlight" : "text-muted"}`}>
         →
       </span>
     </span>

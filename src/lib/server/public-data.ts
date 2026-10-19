@@ -1,11 +1,13 @@
 // Read models for public pages. Never selects client contact data.
-import { asc, eq, isNull } from "drizzle-orm";
+import { cache } from "react";
+import { and, asc, eq, isNull } from "drizzle-orm";
 import { getDb } from "@/lib/db/client";
-import { barberServices, barbers, services, weeklyAvailability } from "@/lib/db/schema";
+import { barberServices, barbers, salons as salonsTable, services, weeklyAvailability } from "@/lib/db/schema";
 import { addDays } from "@/lib/domain/time";
 import { clientPolicy, loadOfferings, nearestSlots } from "./availability";
 import { env } from "./env";
-import { getSettings, type Settings } from "./settings";
+import { findSalonBySlug, type Settings } from "./settings";
+import { getStaff } from "./staff-auth";
 
 export type PublicService = {
   id: string;
@@ -38,12 +40,20 @@ export function mediaUrl(id: string | null): string | null {
 }
 
 /** Active services that at least one active barber performs, with real per-barber prices. */
-export async function getCatalog(): Promise<Catalog> {
+export async function getCatalog(salonId: string): Promise<Catalog> {
   const db = getDb();
   const [svcRows, barberRows, links] = await Promise.all([
-    db.select().from(services).where(eq(services.active, true)).orderBy(asc(services.sortOrder), asc(services.name)),
-    db.select().from(barbers).where(eq(barbers.active, true)).orderBy(asc(barbers.sortOrder), asc(barbers.name), asc(barbers.id)),
-    db.select().from(barberServices),
+    db
+      .select()
+      .from(services)
+      .where(and(eq(services.salonId, salonId), eq(services.active, true)))
+      .orderBy(asc(services.sortOrder), asc(services.name)),
+    db
+      .select()
+      .from(barbers)
+      .where(and(eq(barbers.salonId, salonId), eq(barbers.active, true)))
+      .orderBy(asc(barbers.sortOrder), asc(barbers.name), asc(barbers.id)),
+    db.select().from(barberServices).where(eq(barberServices.salonId, salonId)),
   ]);
   const activeBarbers = new Set(barberRows.map((b) => b.id));
   const out: PublicService[] = [];
@@ -87,11 +97,11 @@ export async function getCatalog(): Promise<Catalog> {
 }
 
 /** Salon weekly hours as display rows, consecutive equal days grouped ("Пн–Сб 10:00–21:00"). */
-export async function getSalonHours(): Promise<{ weekday: number; ranges: { startMin: number; endMin: number }[] }[]> {
+export async function getSalonHours(salonId: string): Promise<{ weekday: number; ranges: { startMin: number; endMin: number }[] }[]> {
   const rows = await getDb()
     .select()
     .from(weeklyAvailability)
-    .where(isNull(weeklyAvailability.barberId))
+    .where(and(eq(weeklyAvailability.salonId, salonId), isNull(weeklyAvailability.barberId)))
     .orderBy(asc(weeklyAvailability.weekday), asc(weeklyAvailability.startMin));
   return [1, 2, 3, 4, 5, 6, 7].map((weekday) => ({
     weekday,
@@ -121,6 +131,8 @@ function minDate(a: string, b: string): string {
 
 export type PublicConfig = {
   salonName: string;
+  /** Path prefix of the salon's pages, e.g. "/morki". */
+  base: string;
   timezone: string;
   mode: "demo" | "live";
   emailEnabled: boolean;
@@ -135,6 +147,7 @@ export type PublicConfig = {
 export function publicConfig(settings: Settings): PublicConfig {
   return {
     salonName: settings.name,
+    base: `/${settings.slug}`,
     timezone: settings.timezone,
     mode: settings.mode,
     emailEnabled: env.emailEnabled,
@@ -147,6 +160,37 @@ export function publicConfig(settings: Settings): PublicConfig {
   };
 }
 
-export async function getPublicSettings(): Promise<Settings> {
-  return getSettings(getDb());
+/** A salon's public page data, or null if it doesn't exist or isn't published (unless previewing). */
+export async function getPublicSalon(slug: string, opts: { preview?: boolean } = {}): Promise<Settings | null> {
+  const salon = await findSalonBySlug(getDb(), slug);
+  if (!salon || (!salon.published && !opts.preview)) return null;
+  return salon;
+}
+
+/**
+ * Salon for a public page request, memoized per request. Unpublished salons are
+ * visible only to their own staff (preview). Returns null → the page 404s.
+ */
+export const loadSalonPage = cache(async (slug: string): Promise<{ salon: Settings; preview: boolean } | null> => {
+  const salon = await findSalonBySlug(getDb(), slug);
+  if (!salon) return null;
+  if (salon.published) return { salon, preview: false };
+  const staff = await getStaff();
+  return staff?.salonId === salon.id ? { salon, preview: true } : null;
+});
+
+/**
+ * The salon owning a service, if its public data may be shown to this visitor
+ * (published, or the visitor is that salon's staff). Null otherwise.
+ */
+export async function salonForService(serviceId: string): Promise<{ salon: Settings; isStaff: boolean; isAdmin: boolean } | null> {
+  const db = getDb();
+  const [row] = await db.select({ salonId: services.salonId }).from(services).where(eq(services.id, serviceId));
+  if (!row) return null;
+  const [salon] = await db.select().from(salonsTable).where(eq(salonsTable.id, row.salonId));
+  if (!salon) return null;
+  const staff = await getStaff();
+  const isStaff = staff?.salonId === salon.id;
+  if (!salon.published && !isStaff) return null;
+  return { salon, isStaff, isAdmin: isStaff && staff?.role === "admin" };
 }

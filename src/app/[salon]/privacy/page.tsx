@@ -1,19 +1,23 @@
+import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { env } from "@/lib/server/env";
-import { getPublicSettings } from "@/lib/server/public-data";
+import { loadSalonPage } from "@/lib/server/public-data";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "Обработка персональных данных",
-  alternates: { canonical: "/privacy" },
 };
 
-export default async function PrivacyPage() {
-  const s = await getPublicSettings();
+export default async function PrivacyPage({ params }: { params: Promise<{ salon: string }> }) {
+  const page = await loadSalonPage((await params).salon);
+  if (!page) notFound();
+  const settings = page.salon;
+  const base = `/${settings.slug}`;
+  const s = settings;
   const missing = !s.privacyController || !s.privacyContact;
   return (
     <article className="mx-auto max-w-3xl px-4 py-12 md:py-16">
-      <h1 className="display text-5xl md:text-6xl">Обработка персональных данных</h1>
+      <h1 className="display text-3xl md:text-[2.75rem]">Обработка персональных данных</h1>
       <p className="mt-3 text-sm text-muted-text">Версия текста согласия: {s.consentVersion}</p>
 
       {s.mode === "demo" && (

@@ -4,7 +4,7 @@ import { getDb } from "@/lib/db/client";
 import { formatDateTimeCompact } from "@/lib/format";
 import { formatCode } from "@/lib/server/crypto";
 import { env } from "@/lib/server/env";
-import { getSettings } from "@/lib/server/settings";
+import { getSalon } from "@/lib/server/settings";
 import { requireAdmin } from "@/lib/server/staff-auth";
 import { outboxEntries } from "@/lib/server/staff-data";
 
@@ -13,10 +13,10 @@ const EVENT: Record<string, string> = { booking_confirmed: "подтвержде
 const STATUS: Record<string, string> = { queued: "в очереди", sent: "отправлено", failed: "ошибка", cancelled: "не требуется" };
 
 export default async function NotificationsPage({ searchParams }: { searchParams: Promise<{ page?: string }> }) {
-  await requireAdmin();
-  const tz = (await getSettings(getDb())).timezone;
+  const user = await requireAdmin();
+  const tz = (await getSalon(getDb(), user.salonId)).timezone;
   const page = Math.max(1, Number((await searchParams).page) || 1);
-  const { rows, hasMore, counts } = await outboxEntries(page, 50);
+  const { rows, hasMore, counts } = await outboxEntries(user.salonId, page, 50);
   const smtp = env.smtp;
   return (
     <div className="space-y-6">

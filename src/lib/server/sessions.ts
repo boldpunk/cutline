@@ -10,6 +10,7 @@ export const SESSION_TTL_SEC = 12 * 3600;
 
 export type StaffUser = {
   id: string;
+  salonId: string;
   email: string;
   name: string;
   role: Role;
@@ -27,7 +28,7 @@ export async function checkCredentials(email: string, password: string): Promise
     return null;
   }
   if (!(await verifyPassword(password, u.passwordHash))) return null;
-  return { id: u.id, email: u.email, name: u.name, role: u.role, barberId: u.barberId };
+  return { id: u.id, salonId: u.salonId, email: u.email, name: u.name, role: u.role, barberId: u.barberId };
 }
 
 export async function createSession(userId: string): Promise<{ token: string; expiresAt: Date }> {
@@ -40,7 +41,7 @@ export async function createSession(userId: string): Promise<{ token: string; ex
 export async function userForSession(token: string | undefined): Promise<StaffUser | null> {
   if (!token || token.length > 100) return null;
   const [row] = await getDb()
-    .select({ id: users.id, email: users.email, name: users.name, role: users.role, barberId: users.barberId })
+    .select({ id: users.id, salonId: users.salonId, email: users.email, name: users.name, role: users.role, barberId: users.barberId })
     .from(sessions)
     .innerJoin(users, eq(users.id, sessions.userId))
     .where(and(eq(sessions.id, sha256Hex(token)), gt(sessions.expiresAt, new Date()), eq(users.active, true)));

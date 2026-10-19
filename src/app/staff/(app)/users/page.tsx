@@ -3,7 +3,7 @@ import { asc, eq } from "drizzle-orm";
 import { CreateUserForm, UserRowActions } from "@/components/staff/UserForms";
 import { getDb } from "@/lib/db/client";
 import { barbers, users } from "@/lib/db/schema";
-import { getSettings } from "@/lib/server/settings";
+import { getSalon } from "@/lib/server/settings";
 import { requireAdmin } from "@/lib/server/staff-auth";
 import { listBarbersBasic } from "@/lib/server/staff-data";
 
@@ -11,15 +11,17 @@ export const metadata: Metadata = { title: "Сотрудники" };
 
 export default async function UsersPage() {
   const me = await requireAdmin();
+  const user = me;
   const db = getDb();
   const [settings, list, allBarbers] = await Promise.all([
-    getSettings(db),
+    getSalon(db, user.salonId),
     db
       .select({ u: users, barberName: barbers.name })
       .from(users)
       .leftJoin(barbers, eq(barbers.id, users.barberId))
+      .where(eq(users.salonId, me.salonId))
       .orderBy(asc(users.role), asc(users.name)),
-    listBarbersBasic(),
+    listBarbersBasic(user.salonId),
   ]);
   const linked = new Set(list.map((r) => r.u.barberId).filter(Boolean));
   return (

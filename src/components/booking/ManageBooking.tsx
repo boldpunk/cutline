@@ -52,6 +52,7 @@ export function ManageBooking({
   function finish(kind: LastOperation["kind"], data: { startAt: string; endAt: string; barberName: string; priceUzs: number; durationMin: number }) {
     const op: LastOperation = {
       kind,
+      base: config.base,
       code: view.code,
       manageUrl: kind === "cancelled" ? null : manageUrl,
       startAt: data.startAt,
@@ -114,7 +115,12 @@ export function ManageBooking({
   return (
     <div>
       <p className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-text">Код записи {formatCodeClient(view.code)}</p>
-      <h1 className="display mt-2 text-5xl">Ваша запись</h1>
+      <h1 className="display mt-2 text-4xl">Ваша запись</h1>
+      <p className="mt-1 text-lg font-medium">
+        <a href={config.base} className="link">
+          {config.salonName}
+        </a>
+      </p>
       <p className="mt-3">
         <span className={`chip ${view.status === "confirmed" ? "text-success" : "text-muted-text"}`}>{STATUS_LABELS[view.status]}</span>
       </p>

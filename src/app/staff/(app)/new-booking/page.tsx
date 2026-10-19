@@ -1,14 +1,16 @@
 import type { Metadata } from "next";
 import { NewBookingForm } from "@/components/staff/NewBookingForm";
 import { todayIn } from "@/lib/domain/time";
-import { getCatalog, getPublicSettings } from "@/lib/server/public-data";
+import { getDb } from "@/lib/db/client";
+import { getCatalog } from "@/lib/server/public-data";
+import { getSalon } from "@/lib/server/settings";
 import { requireAdmin } from "@/lib/server/staff-auth";
 
 export const metadata: Metadata = { title: "Новая запись" };
 
 export default async function NewBookingPage() {
-  await requireAdmin();
-  const [settings, catalog] = await Promise.all([getPublicSettings(), getCatalog()]);
+  const user = await requireAdmin();
+  const [settings, catalog] = await Promise.all([getSalon(getDb(), user.salonId), getCatalog(user.salonId)]);
   return (
     <div>
       <h1 className="text-2xl font-semibold">Новая запись (телефон / визит)</h1>

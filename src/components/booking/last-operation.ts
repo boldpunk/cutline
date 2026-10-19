@@ -4,6 +4,8 @@ export const LAST_OPERATION_KEY = "cutline:last-operation";
 
 export type LastOperation = {
   kind: "created" | "rescheduled" | "cancelled";
+  /** Path of the salon's pages, e.g. "/morki". */
+  base: string;
   code: string;
   manageUrl: string | null;
   startAt: string;

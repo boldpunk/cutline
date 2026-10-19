@@ -61,6 +61,7 @@ export function isPgError(err: unknown, code: string): boolean {
 export const PG = {
   EXCLUSION_VIOLATION: "23P01",
   UNIQUE_VIOLATION: "23505",
+  FOREIGN_KEY: "23503",
   DEADLOCK: "40P01",
   SERIALIZATION: "40001",
 } as const;

@@ -6,19 +6,24 @@ export function Footer({
   address,
   phone,
   socials,
+  instagramUrl,
   mode,
+  base,
 }: {
   salonName: string;
   address: string | null;
   phone: string | null;
   socials: SocialLink[];
+  instagramUrl: string | null;
   mode: "demo" | "live";
+  base: string;
 }) {
+  const links = [...(instagramUrl ? [{ label: "Instagram", url: instagramUrl }] : []), ...socials];
   return (
     <footer className="on-dark bg-ink text-paper">
       <div className="mx-auto grid max-w-6xl gap-8 px-4 py-12 sm:grid-cols-3">
         <div>
-          <p className="display text-3xl">{salonName}</p>
+          <p className="display text-2xl">{salonName}</p>
           {mode === "demo" && <p className="mt-2 text-sm text-muted-dark">Демонстрационный проект. Салона не существует.</p>}
         </div>
         <div className="space-y-1 text-sm">
@@ -30,9 +35,9 @@ export function Footer({
               </a>
             </p>
           )}
-          {socials.length > 0 && (
+          {links.length > 0 && (
             <ul className="flex flex-wrap gap-3 pt-2">
-              {socials.map((s) => (
+              {links.map((s) => (
                 <li key={s.url}>
                   <a className="link" href={s.url} rel="noopener noreferrer" target="_blank">
                     {s.label}
@@ -44,13 +49,19 @@ export function Footer({
         </div>
         <ul className="space-y-1 text-sm sm:text-right">
           <li>
-            <Link className="link" href="/privacy">
+            <Link className="link" href={`${base}/privacy`}>
               Обработка персональных данных
             </Link>
           </li>
           <li>
             <Link className="link text-muted-dark" href="/staff" rel="nofollow">
               Вход для сотрудников
+            </Link>
+          </li>
+          <li className="pt-3 text-xs text-muted-dark">
+            Страница работает на{" "}
+            <Link href="/" className="link">
+              CUTLINE
             </Link>
           </li>
         </ul>

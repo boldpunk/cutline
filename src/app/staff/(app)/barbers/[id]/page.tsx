@@ -6,7 +6,7 @@ import { BarberActiveToggle, BarberProfileForm, PhotoForm } from "@/components/s
 import { WeeklyHoursEditor } from "@/components/staff/WeeklyHoursEditor";
 import { getDb } from "@/lib/db/client";
 import { barbers } from "@/lib/db/schema";
-import { getSettings } from "@/lib/server/settings";
+import { getSalon } from "@/lib/server/settings";
 import { requireAdmin } from "@/lib/server/staff-auth";
 import { weeklyHoursFor } from "@/lib/server/staff-data";
 import { mediaUrl } from "@/lib/server/public-data";
@@ -14,13 +14,13 @@ import { mediaUrl } from "@/lib/server/public-data";
 export const metadata: Metadata = { title: "Мастер" };
 
 export default async function BarberAdminPage({ params }: { params: Promise<{ id: string }> }) {
-  await requireAdmin();
+  const user = await requireAdmin();
   const { id } = await params;
   if (!/^[0-9a-f-]{36}$/.test(id)) notFound();
   const db = getDb();
   const [b] = await db.select().from(barbers).where(eq(barbers.id, id));
   if (!b) notFound();
-  const [settings, hours] = await Promise.all([getSettings(db), weeklyHoursFor(id)]);
+  const [settings, hours] = await Promise.all([getSalon(db, user.salonId), weeklyHoursFor(user.salonId, id)]);
   const tz = settings.timezone;
   const photo = mediaUrl(b.photoMediaId);
   return (

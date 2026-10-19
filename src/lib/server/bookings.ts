@@ -6,6 +6,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { getDb, type Executor } from "@/lib/db/client";
 import {
   barbers,
+  services,
   bookingContacts,
   bookingEvents,
   bookings,
@@ -30,11 +31,11 @@ import { bookingCode, randomToken, seal, sha256Hex, unseal } from "./crypto";
 import { DomainError, PG, isPgError } from "./errors";
 import { lockBarbers } from "./locks";
 import { enqueueForBooking } from "./outbox";
-import { getSettings, type Settings } from "./settings";
+import { getSalon, type Settings } from "./settings";
 
 export type Actor =
   | { type: "client" }
-  | { type: "staff"; userId: string; role: "admin" | "barber"; barberId: string | null };
+  | { type: "staff"; userId: string; role: "admin" | "barber"; barberId: string | null; salonId: string };
 
 export type BookingSummary = {
   bookingId: string;
@@ -67,6 +68,8 @@ export type CreateBookingInput = {
   idempotencyKey: string;
   source: "online" | "staff";
   actorUserId?: string;
+  /** Required for staff bookings: the staff member's salon (cross-salon writes are refused). */
+  actorSalonId?: string;
   now?: number;
 };
 
@@ -127,10 +130,23 @@ async function alternativesFor(
   return nearestSlots(db, settings, offerings, date, policy, 6);
 }
 
+async function salonOfService(serviceId: string): Promise<Settings> {
+  const db = getDb();
+  const [svc] = await db.select({ salonId: services.salonId }).from(services).where(eq(services.id, serviceId));
+  if (!svc) throw new DomainError("service_unavailable", "Эта услуга сейчас недоступна для записи.");
+  return getSalon(db, svc.salonId);
+}
+
 export async function createBooking(input: CreateBookingInput): Promise<CreatedBooking> {
   const db = getDb();
   const now = input.now ?? Date.now();
-  const settings = await getSettings(db);
+  const settings = await salonOfService(input.serviceId);
+  if (input.source === "online" && !settings.published) {
+    throw new DomainError("service_unavailable", "Онлайн-запись в этот салон ещё не открыта.");
+  }
+  if (input.source === "staff" && input.actorSalonId !== settings.id) {
+    throw new DomainError("forbidden", "Недостаточно прав.");
+  }
   const policy = input.source === "online" ? clientPolicy(settings, now) : staffPolicy(settings, now);
   const start = Date.parse(input.startAt);
   if (!Number.isFinite(start)) throw new DomainError("validation", "Некорректное время записи");
@@ -191,7 +207,7 @@ export async function createBooking(input: CreateBookingInput): Promise<CreatedB
       );
       const schedule = await loadSchedule(
         tx,
-        settings.timezone,
+        settings,
         candidates.map((c) => c.barberId),
         date,
         date,
@@ -213,6 +229,7 @@ export async function createBooking(input: CreateBookingInput): Promise<CreatedB
       const [row] = await tx
         .insert(bookings)
         .values({
+          salonId: settings.id,
           code: await uniqueCode(tx),
           accessTokenHash: sha256Hex(token),
           barberId: chosen.barberId,
@@ -342,16 +359,17 @@ export type RescheduleResult = BookingSummary & { changed: boolean };
 export async function rescheduleBooking(input: RescheduleInput): Promise<RescheduleResult> {
   const db = getDb();
   const now = input.now ?? Date.now();
-  const settings = await getSettings(db);
   if (input.actor.type === "staff") assertStaffAdmin(input.actor);
+  // Peek (no lock) to know the salon and which barbers to lock; re-read under lock below.
+  const [peek] = await db.select().from(bookings).where(eq(bookings.id, input.bookingId));
+  if (!peek || (input.actor.type === "staff" && peek.salonId !== input.actor.salonId)) {
+    throw new DomainError("not_found", "Запись не найдена.");
+  }
+  const settings = await getSalon(db, peek.salonId);
   const policy = input.actor.type === "client" ? clientPolicy(settings, now) : staffPolicy(settings, now);
   const start = Date.parse(input.newStartAt);
   if (!Number.isFinite(start)) throw new DomainError("validation", "Некорректное время.");
   const date = utcToZoned(start, settings.timezone).date;
-
-  // Peek (no lock) to know which barbers to lock; re-read under lock below.
-  const [peek] = await db.select().from(bookings).where(eq(bookings.id, input.bookingId));
-  if (!peek) throw new DomainError("not_found", "Запись не найдена.");
   const targetBarberId = input.newBarberId ?? peek.barberId;
 
   try {
@@ -379,6 +397,7 @@ export async function rescheduleBooking(input: RescheduleInput): Promise<Resched
           barberId: b.barberId,
           barberName: await barberName(tx, b.barberId),
           barberSortOrder: 0,
+          salonId: b.salonId,
           serviceId: b.serviceId,
           serviceName: b.serviceName,
           priceUzs: b.priceUzs,
@@ -397,7 +416,7 @@ export async function rescheduleBooking(input: RescheduleInput): Promise<Resched
         terms = offer;
       }
 
-      const schedule = await loadSchedule(tx, settings.timezone, [targetBarberId], date, date, {
+      const schedule = await loadSchedule(tx, settings, [targetBarberId], date, date, {
         excludeBookingId: b.id,
       });
       if (!slotsFor(schedule, terms, date, policy).includes(start)) {
@@ -452,11 +471,14 @@ export type CancelInput = { bookingId: string; actor: Actor; reason?: string | n
 export async function cancelBooking(input: CancelInput): Promise<{ status: BookingStatus; changed: boolean }> {
   const db = getDb();
   const now = input.now ?? Date.now();
-  const settings = await getSettings(db);
   if (input.actor.type === "staff") assertStaffAdmin(input.actor);
 
   return db.transaction(async (tx) => {
     const b = await lockedBooking(tx, input.bookingId);
+    if (input.actor.type === "staff" && b.salonId !== input.actor.salonId) {
+      throw new DomainError("not_found", "Запись не найдена.");
+    }
+    const settings = await getSalon(tx, b.salonId);
     // Repeated cancel is a no-op: no error, no second event.
     if (b.status === "cancelled_by_client" || b.status === "cancelled_by_staff") {
       return { status: b.status, changed: false };
@@ -495,6 +517,7 @@ export async function setOutcome(input: {
   const now = input.now ?? Date.now();
   return db.transaction(async (tx) => {
     const b = await lockedBooking(tx, input.bookingId);
+    if (b.salonId !== input.actor.salonId) throw new DomainError("not_found", "Запись не найдена.");
     if (input.actor.role !== "admin" && b.barberId !== input.actor.barberId) {
       throw new DomainError("forbidden", "Это не ваша запись.");
     }

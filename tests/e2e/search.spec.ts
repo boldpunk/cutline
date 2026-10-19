@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 test("search: Ctrl+K, wrong keyboard layout, keyboard navigation to booking", async ({ page }) => {
-  await page.goto("/services", { waitUntil: "networkidle" }); // shortcut listener attaches after hydration
+  await page.goto("/demo/services", { waitUntil: "networkidle" }); // shortcut listener attaches after hydration
   await page.keyboard.press("Control+k");
   const box = page.getByRole("combobox", { name: /Поиск/ });
   await expect(box).toBeFocused();
@@ -15,12 +15,12 @@ test("search: Ctrl+K, wrong keyboard layout, keyboard navigation to booking", as
   await box.press("ArrowUp");
   const title = (await options.first().locator(".font-medium").textContent())!.trim();
   await box.press("Enter");
-  await expect(page).toHaveURL(/\/book\?service=[0-9a-f-]{36}&step=barber/);
+  await expect(page).toHaveURL(/\/demo\/book\?service=[0-9a-f-]{36}&step=barber/);
   await expect(page.getByText(`Услуга: ${title}`)).toBeVisible();
 });
 
 test("search: '/' opens, Escape closes and returns focus; header button opens; typos and translit", async ({ page }) => {
-  await page.goto("/", { waitUntil: "networkidle" });
+  await page.goto("/demo", { waitUntil: "networkidle" });
   await page.keyboard.press("/");
   const dialog = page.getByRole("dialog", { name: "Поиск по сайту" });
   await expect(dialog).toBeVisible();
@@ -47,19 +47,19 @@ test("search: '/' opens, Escape closes and returns focus; header button opens; t
 test("search works without JavaScript and never exposes client data", async ({ browser, request }) => {
   const ctx = await browser.newContext({ javaScriptEnabled: false });
   const page = await ctx.newPage();
-  await page.goto("/search?q=борода");
+  await page.goto("/demo/search?q=борода");
   await expect(page.getByRole("heading", { name: "Услуги" })).toBeVisible();
   await expect(page.locator("main li").first()).toContainText("бород", { ignoreCase: true });
   await ctx.close();
-  const index = await (await request.get("/api/public/search-index")).text();
+  const index = await (await request.get("/api/public/search-index?salon=demo")).text();
   expect(index).not.toMatch(/Демо-клиент|\+998|@demo/);
 });
 
 test("search @mobile: tap the header button and pick a result", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/demo");
   await page.getByRole("link", { name: /Поиск/ }).first().tap();
   const box = page.getByRole("combobox", { name: /Поиск/ });
   await box.fill("адрес");
   await page.getByRole("option").first().tap();
-  await expect(page).toHaveURL(/\/#contacts$/);
+  await expect(page).toHaveURL(/\/demo#contacts$/);
 });

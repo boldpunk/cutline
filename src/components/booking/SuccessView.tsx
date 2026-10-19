@@ -30,7 +30,7 @@ export function SuccessView() {
   if (op === null) {
     return (
       <div>
-        <h1 className="display text-5xl">Нет данных об операции</h1>
+        <h1 className="display text-4xl">Нет данных об операции</h1>
         <p className="mt-4 text-muted-text">
           Эта страница показывает результат записи только в той вкладке, где она была сделана. Если вы сохранили личную
           ссылку на запись — откройте её. Если ссылка потерялась, позвоните в салон: администратор найдёт запись по номеру
@@ -57,9 +57,9 @@ export function SuccessView() {
   return (
     <div className="animate-rise">
       <p className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-text">Код записи {formatCodeClient(op.code)}</p>
-      <h1 className="display mt-2 text-6xl">{TITLES[op.kind]}</h1>
+      <h1 className="display mt-2 text-4xl">{TITLES[op.kind]}</h1>
       {op.demo && (
-        <p className="mt-4 rounded-lg border-2 border-ink bg-accent/50 p-3 font-medium">
+        <p className="mt-4 rounded-lg border-2 border-ink bg-accent-soft p-3 font-medium">
           Это демонстрационный салон: запись сохранена в тестовой базе, но визит не состоится.
         </p>
       )}
@@ -120,8 +120,8 @@ export function SuccessView() {
             >
               Добавить в календарь (.ics)
             </button>
-            <Link href="/" className="btn btn-ghost">
-              На главную
+            <Link href={op.base} className="btn btn-ghost">
+              На страницу салона
             </Link>
           </div>
           {op.emailSent ? (
@@ -133,11 +133,11 @@ export function SuccessView() {
       )}
       {op.kind === "cancelled" && (
         <div className="mt-6 flex flex-wrap gap-3">
-          <Link href="/book" className="btn btn-primary">
+          <Link href={`${op.base}/book`} className="btn btn-primary">
             Записаться снова
           </Link>
-          <Link href="/" className="btn btn-ghost">
-            На главную
+          <Link href={op.base} className="btn btn-ghost">
+            На страницу салона
           </Link>
         </div>
       )}

@@ -7,7 +7,7 @@ import type { MinuteRange } from "@/lib/domain/slots";
 import { runAction, type ActionResult } from "@/lib/server/action-result";
 import { DomainError } from "@/lib/server/errors";
 import { createTimeBlock, deleteTimeBlock, removeDateException, replaceWeeklyHours, setDateException } from "@/lib/server/schedule-admin";
-import { getSettings } from "@/lib/server/settings";
+import { getSalon } from "@/lib/server/settings";
 import { actorOf, requireStaff } from "@/lib/server/staff-auth";
 import { uuid } from "@/lib/validation";
 
@@ -28,7 +28,7 @@ export async function createBlockAction(input: z.input<typeof blockSchema>): Pro
   return runAction(async () => {
     const user = await requireStaff();
     const b = blockSchema.parse(input);
-    const tz = (await getSettings(getDb())).timezone;
+    const tz = (await getSalon(getDb(), user.salonId)).timezone;
     const startAt = new Date(zonedToUtc(b.startDate, parseHHMM(b.startTime)!, tz));
     const endAt = new Date(zonedToUtc(b.endDate, parseHHMM(b.endTime)!, tz));
     await createTimeBlock({ actor: actorOf(user), barberId: b.barberId, kind: b.kind, startAt, endAt, note: b.note || null });

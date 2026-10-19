@@ -4,7 +4,7 @@ import { AgendaList, CalendarGrid, type CalendarColumn } from "@/components/staf
 import { getDb } from "@/lib/db/client";
 import { addDays, isValidDateString, startOfWeek, todayIn, utcToZoned } from "@/lib/domain/time";
 import { formatLocalDate, tzLabel } from "@/lib/format";
-import { getSettings } from "@/lib/server/settings";
+import { getSalon } from "@/lib/server/settings";
 import { requireStaff } from "@/lib/server/staff-auth";
 import { calendarData, canSeeBooking, listBarbersBasic } from "@/lib/server/staff-data";
 
@@ -14,12 +14,12 @@ type SP = Promise<{ view?: string; date?: string; barber?: string }>;
 
 export default async function CalendarPage({ searchParams }: { searchParams: SP }) {
   const user = await requireStaff();
-  const settings = await getSettings(getDb());
+  const settings = await getSalon(getDb(), user.salonId);
   const tz = settings.timezone;
   const sp = await searchParams;
   const today = todayIn(tz);
   const date = sp.date && isValidDateString(sp.date) ? sp.date : today;
-  const allBarbers = await listBarbersBasic();
+  const allBarbers = await listBarbersBasic(user.salonId);
   const barbers = user.role === "admin" ? allBarbers.filter((b) => b.active) : allBarbers.filter((b) => b.id === user.barberId);
   // Barbers default to their week; admins to the whole salon's day.
   const view = sp.view === "week" || sp.view === "day" ? sp.view : user.role === "admin" ? "day" : "week";

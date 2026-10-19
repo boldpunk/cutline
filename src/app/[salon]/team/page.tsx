@@ -1,21 +1,25 @@
+import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Monogram } from "@/components/site/Monogram";
-import { getCatalog } from "@/lib/server/public-data";
+import { getCatalog, loadSalonPage } from "@/lib/server/public-data";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "Мастера",
   description: "Мастера барбершопа и услуги, которые они выполняют.",
-  alternates: { canonical: "/team" },
 };
 
-export default async function TeamPage() {
-  const { barbers, services } = await getCatalog();
+export default async function TeamPage({ params }: { params: Promise<{ salon: string }> }) {
+  const page = await loadSalonPage((await params).salon);
+  if (!page) notFound();
+  const settings = page.salon;
+  const base = `/${settings.slug}`;
+  const { barbers, services } = await getCatalog(settings.id);
   const serviceName = new Map(services.map((s) => [s.id, s.name]));
   return (
     <div className="mx-auto max-w-6xl px-4 py-12 md:py-16">
-      <h1 className="display text-6xl md:text-7xl">Мастера</h1>
+      <h1 className="display text-4xl md:text-5xl">Мастера</h1>
       {barbers.some((b) => b.isDemo) && (
         <p className="mt-4 text-sm font-medium">Демонстрационная команда: имена и описания вымышлены, фотографий нет.</p>
       )}
@@ -30,7 +34,7 @@ export default async function TeamPage() {
               <Monogram name={b.name} className="aspect-[4/3] w-full [container-type:inline-size]" />
             )}
             <div className="flex flex-1 flex-col p-5">
-              <h2 className="display text-4xl">{b.name}</h2>
+              <h2 className="display text-2xl">{b.name}</h2>
               {b.specialization && <p className="mt-1 font-medium">{b.specialization}</p>}
               {b.bio && <p className="mt-3 text-muted-text">{b.bio}</p>}
               {b.serviceIds.length > 0 && (
@@ -46,7 +50,7 @@ export default async function TeamPage() {
                 </>
               )}
               <div className="mt-auto pt-6">
-                <Link href={`/book?barber=${b.id}`} className="btn btn-dark btn-sm w-full">
+                <Link href={`${base}/book?barber=${b.id}`} className="btn btn-dark btn-sm w-full">
                   Записаться к мастеру {b.name}
                 </Link>
               </div>

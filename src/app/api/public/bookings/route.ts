@@ -3,8 +3,7 @@ import { createBooking } from "@/lib/server/bookings";
 import { env } from "@/lib/server/env";
 import { DomainError } from "@/lib/server/errors";
 import { rateLimit } from "@/lib/server/rate-limit";
-import { getDb } from "@/lib/db/client";
-import { getSettings } from "@/lib/server/settings";
+import { salonForService } from "@/lib/server/public-data";
 import { assertSameOrigin, clientIp, errorResponse, json, readJson } from "@/lib/server/web";
 import { createBookingSchema } from "@/lib/validation";
 
@@ -18,7 +17,9 @@ export async function POST(req: Request) {
         fields: { phone: "Укажите номер в международном формате, например +998 90 123 45 67" },
       });
     }
-    const settings = await getSettings(getDb());
+    const found = await salonForService(body.serviceId);
+    if (!found) throw new DomainError("service_unavailable", "Эта услуга сейчас недоступна для записи.");
+    const settings = found.salon;
     if (body.consentVersion !== settings.consentVersion) {
       throw new DomainError("validation", "Текст согласия обновился. Обновите страницу и подтвердите согласие ещё раз.");
     }

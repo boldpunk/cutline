@@ -5,9 +5,9 @@ import { barbers, bookingContacts, bookingEvents, bookings } from "@/lib/db/sche
 import { maskPhone } from "@/lib/domain/phone";
 import { loadOfferings } from "./availability";
 import { clientChangeAllowed } from "./bookings";
-import type { Settings } from "./settings";
+import { getSalon } from "./settings";
 
-export async function clientBookingView(bookingId: string, settings: Settings) {
+export async function clientBookingView(bookingId: string) {
   const db = getDb();
   const [row] = await db
     .select({
@@ -21,6 +21,7 @@ export async function clientBookingView(bookingId: string, settings: Settings) {
     .leftJoin(bookingContacts, eq(bookingContacts.bookingId, bookings.id))
     .where(eq(bookings.id, bookingId));
   if (!row) return null;
+  const settings = await getSalon(db, row.b.salonId);
   const history = await db
     .select({ type: bookingEvents.type, createdAt: bookingEvents.createdAt, actorType: bookingEvents.actorType, data: bookingEvents.data })
     .from(bookingEvents)
@@ -29,6 +30,7 @@ export async function clientBookingView(bookingId: string, settings: Settings) {
   const allowed = clientChangeAllowed(row.b, settings, Date.now());
   const offers = allowed.ok ? await loadOfferings(db, row.b.serviceId) : [];
   return {
+    salon: settings,
     code: row.b.code,
     status: row.b.status,
     serviceId: row.b.serviceId,
@@ -48,4 +50,4 @@ export async function clientBookingView(bookingId: string, settings: Settings) {
   };
 }
 
-export type ClientBookingView = NonNullable<Awaited<ReturnType<typeof clientBookingView>>>;
+export type ClientBookingView = Omit<NonNullable<Awaited<ReturnType<typeof clientBookingView>>>, "salon">;

@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { StaffNav, type NavItem } from "@/components/staff/StaffNav";
-import { getPublicSettings } from "@/lib/server/public-data";
+import { getDb } from "@/lib/db/client";
+import { getSalon } from "@/lib/server/settings";
 import { requireStaff } from "@/lib/server/staff-auth";
 import { logout } from "../actions";
 
@@ -10,10 +11,11 @@ export const metadata: Metadata = { title: { default: "Кабинет", template
 
 export default async function StaffLayout({ children }: { children: React.ReactNode }) {
   const user = await requireStaff();
-  const s = await getPublicSettings();
+  const s = await getSalon(getDb(), user.salonId);
   const items: NavItem[] =
     user.role === "admin"
       ? [
+          { href: "/staff/setup", label: s.published ? "Страница" : "Публикация" },
           { href: "/staff/calendar", label: "Календарь" },
           { href: "/staff/bookings", label: "Записи" },
           { href: "/staff/new-booking", label: "Новая запись" },
@@ -32,16 +34,18 @@ export default async function StaffLayout({ children }: { children: React.ReactN
           ...(s.barbersCanBlock ? [{ href: "/staff/blocks", label: "Блокировки" }] : []),
         ];
   return (
-    <div className="min-h-dvh bg-paper">
+    <div data-salon-theme="pole" className="min-h-dvh bg-paper text-ink">
       {s.mode === "demo" && (
-        <p className="bg-accent px-4 py-1 text-center text-xs font-semibold">Демо-режим: все данные вымышлены</p>
+        <p className="bg-accent-soft px-4 py-1 text-center text-xs font-semibold text-ink">Демо-режим: все данные вымышлены</p>
       )}
       <header className="on-dark bg-ink text-paper">
         <div className="mx-auto flex h-14 max-w-[90rem] items-center gap-4 px-4">
           <Link href="/staff/calendar" className="display text-xl">
             {s.name}
           </Link>
-          <span className="hidden text-sm text-muted-dark sm:inline">Кабинет</span>
+          <a href={`/${s.slug}`} className="hidden text-sm text-muted-dark underline-offset-4 hover:underline sm:inline" target="_blank" rel="noopener">
+            {s.published ? "открыть страницу ↗" : "черновик страницы ↗"}
+          </a>
           <span className="ml-auto truncate text-sm">
             {user.name} <span className="text-muted-dark">· {user.role === "admin" ? "администратор" : "мастер"}</span>
           </span>

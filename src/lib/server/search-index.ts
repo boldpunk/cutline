@@ -2,10 +2,12 @@
 // facts (services, prices, barbers, salon info) — never client data.
 import type { SearchDoc } from "@/lib/search/engine";
 import { formatDuration, formatUzs } from "@/lib/domain/money";
-import { getCatalog, getPublicSettings } from "./public-data";
+import { getCatalog } from "./public-data";
+import type { Salon } from "./settings";
 
-export async function buildSearchIndex(): Promise<SearchDoc[]> {
-  const [catalog, settings] = await Promise.all([getCatalog(), getPublicSettings()]);
+export async function buildSearchIndex(settings: Salon): Promise<SearchDoc[]> {
+  const catalog = await getCatalog(settings.id);
+  const base = `/${settings.slug}`;
   const barberName = new Map(catalog.barbers.map((b) => [b.id, b.name]));
   const serviceName = new Map(catalog.services.map((s) => [s.id, s.name]));
 
@@ -18,7 +20,7 @@ export async function buildSearchIndex(): Promise<SearchDoc[]> {
       s.minDuration === s.maxDuration ? formatDuration(s.minDuration) : `${formatDuration(s.minDuration)} – ${formatDuration(s.maxDuration)}`,
     ].join(" · "),
     keywords: [s.description, s.category, ...s.offers.map((o) => barberName.get(o.barberId))].filter(Boolean).join(" "),
-    href: `/book?service=${s.id}&step=barber`,
+    href: `${base}/book?service=${s.id}&step=barber`,
     weight: 3,
   }));
 
@@ -28,7 +30,7 @@ export async function buildSearchIndex(): Promise<SearchDoc[]> {
     title: b.name,
     subtitle: b.specialization ?? "Мастер",
     keywords: ["мастер барбер", b.bio, ...b.serviceIds.map((id) => serviceName.get(id))].filter(Boolean).join(" "),
-    href: `/book?barber=${b.id}`,
+    href: `${base}/book?barber=${b.id}`,
     weight: 2,
   }));
 
@@ -39,7 +41,7 @@ export async function buildSearchIndex(): Promise<SearchDoc[]> {
       title: "Записаться онлайн",
       subtitle: "Услуга, мастер и свободное время",
       keywords: "запись записаться забронировать бронь время свободно окно онлайн",
-      href: "/book",
+      href: `${base}/book`,
     },
     {
       id: "info:contacts",
@@ -47,7 +49,7 @@ export async function buildSearchIndex(): Promise<SearchDoc[]> {
       title: "Адрес и часы работы",
       subtitle: settings.address ?? "График работы салона",
       keywords: "адрес где находится карта как добраться часы график режим работы открыто телефон контакты",
-      href: "/#contacts",
+      href: `${base}#contacts`,
     },
     {
       id: "info:prices",
@@ -55,7 +57,7 @@ export async function buildSearchIndex(): Promise<SearchDoc[]> {
       title: "Все услуги и цены",
       subtitle: "Прайс с длительностью",
       keywords: "прайс цены стоимость сколько стоит услуги",
-      href: "/services",
+      href: `${base}/services`,
     },
     {
       id: "info:team",
@@ -63,7 +65,7 @@ export async function buildSearchIndex(): Promise<SearchDoc[]> {
       title: "Все мастера",
       subtitle: "Кто работает в салоне",
       keywords: "мастера барберы команда парикмахер",
-      href: "/team",
+      href: `${base}/team`,
     },
     {
       id: "info:manage",
@@ -71,7 +73,7 @@ export async function buildSearchIndex(): Promise<SearchDoc[]> {
       title: "Перенос и отмена записи",
       subtitle: `По личной ссылке, не позднее чем за ${settings.cancelCutoffHours} ч`,
       keywords: "перенести отменить отмена перенос изменить запись ссылка опоздаю",
-      href: "/#how",
+      href: `${base}#how`,
     },
     {
       id: "info:privacy",
@@ -79,7 +81,7 @@ export async function buildSearchIndex(): Promise<SearchDoc[]> {
       title: "Обработка персональных данных",
       subtitle: "Какие данные мы храним и сколько",
       keywords: "персональные данные политика конфиденциальность согласие телефон удалить",
-      href: "/privacy",
+      href: `${base}/privacy`,
     },
   ];
   return [...services, ...barbers, ...info];

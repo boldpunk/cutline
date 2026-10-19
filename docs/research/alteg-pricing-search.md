@@ -45,4 +45,4 @@
 - Пустой результат подсказывает, куда идти, вместо голого «Не найдено».
 - Индекс публичный и маленький, без данных клиентов; поиск выполняется в браузере мгновенно.
 
-Код: `src/lib/search/engine.ts` (движок, юнит-тесты `tests/unit/search.test.ts`), `src/components/search/*`, `src/app/(site)/search/page.tsx`, `src/app/api/public/search-index/route.ts`; E2E — `tests/e2e/search.spec.ts`.
+Код: `src/lib/search/engine.ts` (движок, юнит-тесты `tests/unit/search.test.ts`), `src/components/search/*`, `src/app/[salon]/search/page.tsx`, `src/app/api/public/search-index/route.ts`; E2E — `tests/e2e/search.spec.ts`.

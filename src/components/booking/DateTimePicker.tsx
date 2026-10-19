@@ -180,7 +180,7 @@ export function DateTimePicker({
                             aria-pressed={chosen}
                             onClick={() => onTime(s, slots.offers)}
                             className={`flex h-12 w-full items-center justify-center gap-1 rounded-lg border-2 text-base font-semibold tabular-nums transition-colors ${
-                              chosen ? "border-ink bg-ink text-paper" : "border-ink/60 bg-white hover:bg-accent"
+                              chosen ? "border-ink bg-ink text-paper" : "border-ink/60 bg-white hover:bg-accent-soft"
                             }`}
                           >
                             {chosen && <span aria-hidden>✓</span>}

@@ -8,7 +8,7 @@ import { formatDuration, formatUzs } from "@/lib/domain/money";
 import { formatDateTime, tzLabel } from "@/lib/format";
 import { formatCode } from "./crypto";
 import { env } from "./env";
-import { getSettings } from "./settings";
+import { getSalon } from "./settings";
 
 export type EmailMessage = { to: string; subject: string; text: string };
 export interface EmailProvider {
@@ -69,7 +69,6 @@ export async function processOutboxOnce(provider: EmailProvider | null, now: Dat
         for update skip locked)
     returning id`);
   if (claimed.length === 0) return 0;
-  const settings = await getSettings(db);
   const rows = await db
     .select({ o: notificationOutbox, b: bookings, email: bookingContacts.email, name: bookingContacts.clientName, barberName: barbers.name })
     .from(notificationOutbox)
@@ -79,6 +78,7 @@ export async function processOutboxOnce(provider: EmailProvider | null, now: Dat
     .where(inArray(notificationOutbox.id, claimed.map((c) => c.id)));
 
   for (const { o, b, email, name, barberName } of rows) {
+    const settings = await getSalon(db, b.salonId);
     const done = (patch: Partial<typeof notificationOutbox.$inferInsert>) =>
       db.update(notificationOutbox).set({ ...patch, lockedUntil: null, updatedAt: now }).where(eq(notificationOutbox.id, o.id));
 
@@ -130,19 +130,15 @@ export async function processOutboxOnce(provider: EmailProvider | null, now: Dat
 /** Periodic cleanup: rate-limit windows, idempotency replies, expired sessions, contacts past retention. */
 export async function housekeeping(now: Date = new Date()): Promise<{ contactsDeleted: number }> {
   const db = getDb();
-  const settings = await getSettings(db);
   await db.execute(sql`delete from rate_limits where window_start < ${new Date(now.getTime() - 2 * 86_400_000).toISOString()}::timestamptz`);
   await db.execute(sql`delete from idempotency_keys where created_at < ${new Date(now.getTime() - 86_400_000).toISOString()}::timestamptz`);
   await db.execute(sql`delete from sessions where expires_at < ${now.toISOString()}::timestamptz`);
-  let contactsDeleted = 0;
-  if (settings.retentionDays) {
-    const cutoff = new Date(now.getTime() - settings.retentionDays * 86_400_000);
-    const res = await db.execute(sql`
-      delete from booking_contacts c using bookings b
-       where b.id = c.booking_id and b.end_at < ${cutoff.toISOString()}::timestamptz
-      returning c.booking_id`);
-    contactsDeleted = res.length;
-  }
-  return { contactsDeleted };
+  // Each salon keeps contacts for its own retention period (unset = keep).
+  const res = await db.execute(sql`
+    delete from booking_contacts c using bookings b, salons s
+     where b.id = c.booking_id and s.id = b.salon_id and s.retention_days is not null
+       and b.end_at < ${now.toISOString()}::timestamptz - make_interval(days => s.retention_days)
+    returning c.booking_id`);
+  return { contactsDeleted: res.length };
 }
 

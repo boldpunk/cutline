@@ -4,15 +4,15 @@ import { asc } from "drizzle-orm";
 import { BarberProfileForm } from "@/components/staff/BarberForms";
 import { getDb } from "@/lib/db/client";
 import { barbers } from "@/lib/db/schema";
-import { getSettings } from "@/lib/server/settings";
+import { getSalon } from "@/lib/server/settings";
 import { requireAdmin } from "@/lib/server/staff-auth";
 
 export const metadata: Metadata = { title: "Мастера" };
 
 export default async function BarbersAdminPage() {
-  await requireAdmin();
+  const user = await requireAdmin();
   const db = getDb();
-  const [settings, list] = await Promise.all([getSettings(db), db.select().from(barbers).orderBy(asc(barbers.sortOrder), asc(barbers.name))]);
+  const [settings, list] = await Promise.all([getSalon(db, user.salonId), db.select().from(barbers).orderBy(asc(barbers.sortOrder), asc(barbers.name))]);
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-semibold">Мастера</h1>

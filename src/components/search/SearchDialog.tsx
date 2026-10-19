@@ -7,16 +7,19 @@ import { groupHits, KIND_LABELS, SearchResultRow } from "./SearchResultRow";
 
 export const OPEN_SEARCH_EVENT = "cutline:open-search";
 
-let indexPromise: Promise<SearchDoc[]> | null = null;
-function loadIndex(): Promise<SearchDoc[]> {
-  indexPromise ??= fetch("/api/public/search-index")
+const indexPromises = new Map<string, Promise<SearchDoc[]>>();
+function loadIndex(slug: string): Promise<SearchDoc[]> {
+  const cached = indexPromises.get(slug);
+  if (cached) return cached;
+  const p = fetch(`/api/public/search-index?salon=${encodeURIComponent(slug)}`)
     .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
     .then((d: { docs: SearchDoc[] }) => d.docs)
     .catch((e) => {
-      indexPromise = null; // allow a retry on the next open
+      indexPromises.delete(slug); // allow a retry on the next open
       throw e;
     });
-  return indexPromise;
+  indexPromises.set(slug, p);
+  return p;
 }
 
 function isTypingTarget(el: EventTarget | null): boolean {
@@ -28,7 +31,8 @@ function isTypingTarget(el: EventTarget | null): boolean {
  * Site-wide search palette. Opens with Cmd/Ctrl+K, "/" (outside text fields)
  * or the header button; Esc closes and returns focus.
  */
-export function SearchDialog() {
+export function SearchDialog({ slug }: { slug: string }) {
+  const base = `/${slug}`;
   const router = useRouter();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -45,8 +49,8 @@ export function SearchDialog() {
     opener.current = document.activeElement as HTMLElement | null;
     setOpen(true);
     setError(false);
-    loadIndex().then(setDocs, () => setError(true));
-  }, []);
+    loadIndex(slug).then(setDocs, () => setError(true));
+  }, [slug]);
 
   useEffect(() => {
     const d = dialogRef.current;
@@ -116,7 +120,7 @@ export function SearchDialog() {
     } else if (e.key === "Enter") {
       e.preventDefault();
       if (current) go(current.doc.href);
-      else if (query.trim()) go(`/search?q=${encodeURIComponent(query.trim())}`);
+      else if (query.trim()) go(`${base}/search?q=${encodeURIComponent(query.trim())}`);
     }
   }
 
@@ -170,7 +174,7 @@ export function SearchDialog() {
           {error && (
             <p className="px-3 py-6 text-center text-sm">
               Не удалось загрузить данные для поиска.{" "}
-              <button type="button" className="link" onClick={() => loadIndex().then(setDocs, () => setError(true))}>
+              <button type="button" className="link" onClick={() => loadIndex(slug).then(setDocs, () => setError(true))}>
                 Повторить
               </button>
             </p>
@@ -187,11 +191,11 @@ export function SearchDialog() {
               <p className="font-medium">Ничего не нашли по «{query.trim()}»</p>
               <p className="mt-2 text-sm text-muted-text">
                 Посмотрите{" "}
-                <Link href="/services" className="link" onClick={() => setOpen(false)}>
+                <Link href={`${base}/services`} className="link" onClick={() => setOpen(false)}>
                   все услуги
                 </Link>{" "}
                 или{" "}
-                <Link href="/team" className="link" onClick={() => setOpen(false)}>
+                <Link href={`${base}/team`} className="link" onClick={() => setOpen(false)}>
                   мастеров
                 </Link>
                 .

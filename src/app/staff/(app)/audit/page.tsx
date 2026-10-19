@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { getDb } from "@/lib/db/client";
 import { formatDateTimeCompact } from "@/lib/format";
-import { getSettings } from "@/lib/server/settings";
+import { getSalon } from "@/lib/server/settings";
 import { requireAdmin } from "@/lib/server/staff-auth";
 import { auditEntries } from "@/lib/server/staff-data";
 
@@ -14,10 +14,10 @@ function summarize(data: Record<string, unknown>): string {
 }
 
 export default async function AuditPage({ searchParams }: { searchParams: Promise<{ page?: string }> }) {
-  await requireAdmin();
-  const tz = (await getSettings(getDb())).timezone;
+  const user = await requireAdmin();
+  const tz = (await getSalon(getDb(), user.salonId)).timezone;
   const page = Math.max(1, Number((await searchParams).page) || 1);
-  const { rows, hasMore } = await auditEntries(page, 50);
+  const { rows, hasMore } = await auditEntries(user.salonId, page, 50);
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-semibold">Журнал изменений</h1>

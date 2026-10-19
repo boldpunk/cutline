@@ -27,11 +27,11 @@ export function canSeeBooking(user: StaffUser, barberId: string): boolean {
   return user.role === "admin" || user.barberId === barberId;
 }
 
-export async function listBarbersBasic(opts: { activeOnly?: boolean } = {}) {
+export async function listBarbersBasic(salonId: string, opts: { activeOnly?: boolean } = {}) {
   return getDb()
     .select({ id: barbers.id, name: barbers.name, active: barbers.active, sortOrder: barbers.sortOrder })
     .from(barbers)
-    .where(opts.activeOnly ? eq(barbers.active, true) : undefined)
+    .where(and(eq(barbers.salonId, salonId), opts.activeOnly ? eq(barbers.active, true) : undefined))
     .orderBy(asc(barbers.sortOrder), asc(barbers.name), asc(barbers.id));
 }
 
@@ -48,7 +48,7 @@ export type BookingFilters = {
 export async function listBookings(user: StaffUser, settings: Settings, f: BookingFilters) {
   const db = getDb();
   const tz = settings.timezone;
-  const conds = [];
+  const conds = [eq(bookings.salonId, user.salonId)];
   if (user.role !== "admin") conds.push(eq(bookings.barberId, user.barberId!));
   else if (f.barberId) conds.push(eq(bookings.barberId, f.barberId));
   if (f.from) conds.push(gte(bookings.startAt, new Date(zonedToUtc(f.from, 0, tz))));
@@ -101,7 +101,7 @@ export async function bookingDetail(user: StaffUser, id: string) {
     .from(bookings)
     .innerJoin(barbers, eq(barbers.id, bookings.barberId))
     .leftJoin(bookingContacts, eq(bookingContacts.bookingId, bookings.id))
-    .where(eq(bookings.id, id));
+    .where(and(eq(bookings.id, id), eq(bookings.salonId, user.salonId)));
   if (!row || !canSeeBooking(user, row.b.barberId)) return null;
   const events = await db
     .select({ e: bookingEvents, actorName: users.name })
@@ -157,6 +157,7 @@ export async function calendarData(user: StaffUser, settings: Settings, barberId
       .leftJoin(bookingContacts, eq(bookingContacts.bookingId, bookings.id))
       .where(
         and(
+          eq(bookings.salonId, user.salonId),
           inArray(bookings.barberId, visible),
           inArray(bookings.status, ["confirmed", "completed", "no_show"]),
           lt(bookings.startAt, rangeEnd),
@@ -167,8 +168,15 @@ export async function calendarData(user: StaffUser, settings: Settings, barberId
     db
       .select()
       .from(timeBlocks)
-      .where(and(inArray(timeBlocks.barberId, visible), lt(timeBlocks.startAt, rangeEnd), gte(timeBlocks.endAt, rangeStart))),
-    loadSchedule(db, tz, visible, from, to),
+      .where(
+        and(
+          eq(timeBlocks.salonId, user.salonId),
+          inArray(timeBlocks.barberId, visible),
+          lt(timeBlocks.startAt, rangeEnd),
+          gte(timeBlocks.endAt, rangeStart),
+        ),
+      ),
+    loadSchedule(db, settings, visible, from, to),
   ]);
   const items: CalendarItem[] = [
     ...bk.map((b) => ({
@@ -206,22 +214,28 @@ export async function listBlocks(user: StaffUser, fromInstant: Date) {
     .select({ b: timeBlocks, barberName: barbers.name })
     .from(timeBlocks)
     .innerJoin(barbers, eq(barbers.id, timeBlocks.barberId))
-    .where(and(gte(timeBlocks.endAt, fromInstant), user.role === "admin" ? undefined : eq(timeBlocks.barberId, user.barberId!)))
+    .where(
+      and(
+        eq(timeBlocks.salonId, user.salonId),
+        gte(timeBlocks.endAt, fromInstant),
+        user.role === "admin" ? undefined : eq(timeBlocks.barberId, user.barberId!),
+      ),
+    )
     .orderBy(asc(timeBlocks.startAt))
     .limit(200);
 }
 
-export async function listExceptions(fromDate: string) {
+export async function listExceptions(salonId: string, fromDate: string) {
   return getDb()
     .select({ e: scheduleExceptions, barberName: barbers.name })
     .from(scheduleExceptions)
     .leftJoin(barbers, eq(barbers.id, scheduleExceptions.barberId))
-    .where(gte(scheduleExceptions.date, fromDate))
+    .where(and(eq(scheduleExceptions.salonId, salonId), gte(scheduleExceptions.date, fromDate)))
     .orderBy(asc(scheduleExceptions.date), asc(scheduleExceptions.startMin))
     .limit(300);
 }
 
-export async function auditEntries(page: number, pageSize: number) {
+export async function auditEntries(salonId: string, page: number, pageSize: number) {
   const db = getDb();
   // Merge staff audit log with booking history into one journal.
   const rows = await db.execute<{
@@ -236,37 +250,47 @@ export async function auditEntries(page: number, pageSize: number) {
       select a.created_at as at, 'audit' as source, a.action, a.entity_type || coalesce(':' || a.entity_id, '') as entity,
              u.name as actor, a.data
         from ${auditLog} a left join ${users} u on u.id = a.actor_user_id
+       where a.salon_id = ${salonId}
       union all
       select e.created_at as at, 'booking' as source, 'booking.' || e.type as action, 'booking:' || b.code as entity,
              coalesce(u.name, case e.actor_type when 'client' then 'клиент' when 'system' then 'система' end) as actor, e.data
         from ${bookingEvents} e join ${bookings} b on b.id = e.booking_id left join ${users} u on u.id = e.actor_user_id
+       where b.salon_id = ${salonId}
     ) j order by at desc limit ${pageSize + 1} offset ${(page - 1) * pageSize}`);
   const list = [...rows];
   return { rows: list.slice(0, pageSize), hasMore: list.length > pageSize };
 }
 
-export async function outboxEntries(page: number, pageSize: number) {
+export async function outboxEntries(salonId: string, page: number, pageSize: number) {
   const db = getDb();
   const rows = await db
     .select({ o: notificationOutbox, code: bookings.code })
     .from(notificationOutbox)
     .innerJoin(bookings, eq(bookings.id, notificationOutbox.bookingId))
+    .where(eq(bookings.salonId, salonId))
     .orderBy(desc(notificationOutbox.createdAt))
     .limit(pageSize + 1)
     .offset((page - 1) * pageSize);
   const counts = await db
     .select({ status: notificationOutbox.status, n: count() })
     .from(notificationOutbox)
+    .innerJoin(bookings, eq(bookings.id, notificationOutbox.bookingId))
+    .where(eq(bookings.salonId, salonId))
     .groupBy(notificationOutbox.status);
   return { rows: rows.slice(0, pageSize), hasMore: rows.length > pageSize, counts };
 }
 
 /** Weekly hours of a barber (or the salon) as editable "HH:MM" ranges. */
-export async function weeklyHoursFor(barberId: string | null): Promise<Record<number, { start: string; end: string }[]>> {
+export async function weeklyHoursFor(salonId: string, barberId: string | null): Promise<Record<number, { start: string; end: string }[]>> {
   const rows = await getDb()
     .select()
     .from(weeklyAvailability)
-    .where(barberId ? eq(weeklyAvailability.barberId, barberId) : isNull(weeklyAvailability.barberId))
+    .where(
+      and(
+        eq(weeklyAvailability.salonId, salonId),
+        barberId ? eq(weeklyAvailability.barberId, barberId) : isNull(weeklyAvailability.barberId),
+      ),
+    )
     .orderBy(asc(weeklyAvailability.weekday), asc(weeklyAvailability.startMin));
   const out: Record<number, { start: string; end: string }[]> = {};
   for (const r of rows) (out[r.weekday] ??= []).push({ start: minutesToHHMM(r.startMin), end: minutesToHHMM(r.endMin) });

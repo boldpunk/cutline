@@ -2,7 +2,9 @@
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { getDb } from "@/lib/db/client";
 import { env } from "@/lib/server/env";
+import { getSalon } from "@/lib/server/settings";
 import { clearRateLimit, rateLimit } from "@/lib/server/rate-limit";
 import { SESSION_COOKIE, SESSION_TTL_SEC, checkCredentials, createSession, deleteSession } from "@/lib/server/sessions";
 import { clientIp } from "@/lib/server/web";
@@ -34,7 +36,9 @@ export async function login(_prev: LoginState, form: FormData): Promise<LoginSta
     path: "/",
     maxAge: SESSION_TTL_SEC,
   });
-  redirect("/staff/calendar");
+  // A fresh business lands on its setup checklist until the page is published.
+  const salon = await getSalon(getDb(), user.salonId);
+  redirect(user.role === "admin" && !salon.published ? "/staff/setup" : "/staff/calendar");
 }
 
 export async function logout(): Promise<void> {

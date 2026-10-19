@@ -1,23 +1,35 @@
+import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { groupHits, KIND_LABELS, SearchResultRow } from "@/components/search/SearchResultRow";
 import { prepare, search } from "@/lib/search/engine";
+import { loadSalonPage } from "@/lib/server/public-data";
 import { buildSearchIndex } from "@/lib/server/search-index";
 
 export const dynamic = "force-dynamic";
 // Result pages are not indexed; the catalog pages already are.
 export const metadata: Metadata = { title: "Поиск", robots: { index: false, follow: true } };
 
-export default async function SearchPage({ searchParams }: { searchParams: Promise<{ q?: string | string[] }> }) {
+export default async function SearchPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ salon: string }>;
+  searchParams: Promise<{ q?: string | string[] }>;
+}) {
+  const page = await loadSalonPage((await params).salon);
+  if (!page) notFound();
+  const settings = page.salon;
+  const base = `/${settings.slug}`;
   const raw = (await searchParams).q;
   const q = (Array.isArray(raw) ? raw[0] : raw)?.slice(0, 80).trim() ?? "";
-  const hits = q ? search(prepare(await buildSearchIndex()), q, 30) : [];
+  const hits = q ? search(prepare(await buildSearchIndex(settings)), q, 30) : [];
   const groups = groupHits(hits);
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-12 md:py-16">
-      <h1 className="display text-5xl md:text-6xl">Поиск</h1>
-      <form action="/search" method="get" role="search" className="mt-6 flex gap-2">
+      <h1 className="display text-3xl md:text-[2.75rem]">Поиск</h1>
+      <form action={`${base}/search`} method="get" role="search" className="mt-6 flex gap-2">
         <label htmlFor="search-q" className="sr-only">
           Что ищем
         </label>
@@ -38,11 +50,11 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
           <p className="font-medium">Ничего не нашли по «{q}».</p>
           <p className="mt-2 text-muted-text">
             Посмотрите{" "}
-            <Link className="link" href="/services">
+            <Link className="link" href={`${base}/services`}>
               все услуги и цены
             </Link>{" "}
             или{" "}
-            <Link className="link" href="/team">
+            <Link className="link" href={`${base}/team`}>
               мастеров
             </Link>
             .

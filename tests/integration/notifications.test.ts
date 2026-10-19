@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/lib/db/client";
-import { bookingContacts, bookings, notificationOutbox, salonSettings } from "@/lib/db/schema";
+import { bookingContacts, bookings, notificationOutbox, salons } from "@/lib/db/schema";
 import { cancelBooking, createBooking, rescheduleBooking } from "@/lib/server/bookings";
 import { housekeeping, processOutboxOnce, smtpProvider, type EmailProvider } from "@/lib/server/notifications";
 import { DAY1, NOW, at, buildWorld, clientInput, resetDatabase, type World } from "./harness";
@@ -83,7 +83,7 @@ describe("A11 notification failures never affect bookings", () => {
 describe("retention", () => {
   it("removes contact data of visits older than the retention period", async () => {
     const b = await createBooking(clientInput(w));
-    await getDb().update(salonSettings).set({ retentionDays: 30 });
+    await getDb().update(salons).set({ retentionDays: 30 }).where(eq(salons.id, w.salon.id));
     const r1 = await housekeeping(new Date(NOW + 10 * 86_400_000));
     expect(r1.contactsDeleted).toBe(0);
     const r2 = await housekeeping(new Date(NOW + 40 * 86_400_000));

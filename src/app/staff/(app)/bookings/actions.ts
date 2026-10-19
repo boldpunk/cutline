@@ -7,7 +7,7 @@ import { runAction, type ActionResult } from "@/lib/server/action-result";
 import { cancelBooking, createBooking, rescheduleBooking, setOutcome } from "@/lib/server/bookings";
 import { env } from "@/lib/server/env";
 import { DomainError } from "@/lib/server/errors";
-import { getSettings } from "@/lib/server/settings";
+import { getSalon } from "@/lib/server/settings";
 import { actorOf, requireAdmin, requireStaff } from "@/lib/server/staff-auth";
 import { clientName, comment, isoInstant, uuid } from "@/lib/validation";
 
@@ -73,7 +73,7 @@ export async function createStaffBookingAction(
     const body = staffCreate.parse(input);
     const phone = normalizePhone(body.phone);
     if (!phone) throw new DomainError("validation", "Проверьте номер телефона.", { fields: { phone: "Некорректный номер" } });
-    const settings = await getSettings(getDb());
+    const settings = await getSalon(getDb(), user.salonId);
     const r = await createBooking({
       serviceId: body.serviceId,
       barberId: body.barberId,

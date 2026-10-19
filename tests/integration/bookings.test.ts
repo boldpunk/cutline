@@ -5,7 +5,7 @@ import { bookingEvents, bookings, services } from "@/lib/db/schema";
 import { clientPolicy, loadOfferings, loadSchedule, mergeSlots } from "@/lib/server/availability";
 import { cancelBooking, createBooking, rescheduleBooking, setOutcome } from "@/lib/server/bookings";
 import { DomainError } from "@/lib/server/errors";
-import { getSettings } from "@/lib/server/settings";
+import { getSalon } from "@/lib/server/settings";
 import { DAY1, NOW, at, buildWorld, clientInput, resetDatabase, type World } from "./harness";
 
 let w: World;
@@ -107,9 +107,9 @@ describe("A02 concurrent bookings of one slot", () => {
   it("the database itself rejects overlapping confirmed bookings (exclusion constraint)", async () => {
     const res = await createBooking(clientInput(w));
     const clone = sql`
-      insert into bookings (code, access_token_hash, barber_id, service_id, service_name, price_uzs, duration_min,
+      insert into bookings (salon_id, code, access_token_hash, barber_id, service_id, service_name, price_uzs, duration_min,
         buffer_before_min, buffer_after_min, start_at, end_at, occupied_from, occupied_until, status, source)
-      select 'ZZZZZZZZ', 'other-hash', barber_id, service_id, service_name, price_uzs, duration_min,
+      select salon_id, 'ZZZZZZZZ', 'other-hash', barber_id, service_id, service_name, price_uzs, duration_min,
         buffer_before_min, buffer_after_min, start_at + interval '30 minutes', end_at + interval '30 minutes',
         occupied_from + interval '30 minutes', occupied_until + interval '30 minutes', ${"confirmed"}, source
       from bookings where id = ${res.bookingId}`;
@@ -255,9 +255,9 @@ describe("availability listing", () => {
   it("lists slots per barber and hides taken ones", async () => {
     await createBooking(clientInput(w));
     const db = getDb();
-    const settings = await getSettings(db);
+    const settings = await getSalon(db, w.salon.id);
     const offerings = await loadOfferings(db, w.cut.id);
-    const data = await loadSchedule(db, settings.timezone, offerings.map((o) => o.barberId), DAY1, DAY1);
+    const data = await loadSchedule(db, settings, offerings.map((o) => o.barberId), DAY1, DAY1);
     const slots = mergeSlots(data, offerings, DAY1, clientPolicy(settings, NOW));
     const ten = slots.find((s) => s.startAt === at(DAY1, "10:00"));
     expect(ten?.barberIds).toEqual([w.bekzod.id]);

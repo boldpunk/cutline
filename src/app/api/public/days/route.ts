@@ -3,16 +3,10 @@ import { getDb } from "@/lib/db/client";
 import { addDays, diffDays, isValidDateString } from "@/lib/domain/time";
 import { staffPolicy, clientPolicy, dayStatus, loadOfferings, loadSchedule } from "@/lib/server/availability";
 import { DomainError } from "@/lib/server/errors";
-import { getSettings } from "@/lib/server/settings";
-import { getStaff } from "@/lib/server/staff-auth";
+import { salonForService } from "@/lib/server/public-data";
 import { errorResponse, json } from "@/lib/server/web";
 import { isoDate, uuid } from "@/lib/validation";
 
-// Staff (admins) may book inside the client lead time, e.g. walk-ins.
-async function policyFor(scope: string | undefined, settings: Awaited<ReturnType<typeof getSettings>>) {
-  if (scope === "staff" && (await getStaff())?.role === "admin") return staffPolicy(settings, Date.now());
-  return clientPolicy(settings, Date.now());
-}
 
 const query = z.object({ service: uuid, barber: z.union([uuid, z.literal("any")]),
   scope: z.enum(["client", "staff"]).optional(), from: isoDate, to: isoDate });
@@ -25,10 +19,12 @@ export async function GET(req: Request) {
     const span = diffDays(p.to, p.from);
     if (span < 0 || span > 42) throw new DomainError("validation", "Слишком большой период");
     const db = getDb();
-    const settings = await getSettings(db);
-    const policy = await policyFor(p.scope, settings);
+    const found = await salonForService(p.service);
+    if (!found) throw new DomainError("not_found", "Услуга не найдена.");
+    const settings = found.salon;
+    const policy = p.scope === "staff" && found.isAdmin ? staffPolicy(settings, Date.now()) : clientPolicy(settings, Date.now());
     const offerings = await loadOfferings(db, p.service, p.barber === "any" ? undefined : [p.barber]);
-    const data = await loadSchedule(db, settings.timezone, offerings.map((o) => o.barberId), p.from, p.to);
+    const data = await loadSchedule(db, settings, offerings.map((o) => o.barberId), p.from, p.to);
     const days = [];
     for (let d = p.from; diffDays(p.to, d) >= 0; d = addDays(d, 1)) {
       days.push({ date: d, status: offerings.length ? dayStatus(data, offerings, d, policy) : "closed" });

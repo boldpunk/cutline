@@ -9,8 +9,8 @@ export function Monogram({ name, className = "" }: { name: string; className?: s
   return (
     <div
       aria-hidden
-      className={`flex items-center justify-center bg-surface text-accent display select-none ${className}`}
-      style={{ backgroundImage: "repeating-linear-gradient(135deg, transparent 0 22px, rgb(217 240 90 / 0.07) 22px 24px)" }}
+      className={`flex items-center justify-center bg-surface text-highlight display select-none ${className}`}
+      style={{ backgroundImage: "repeating-linear-gradient(135deg, transparent 0 22px, color-mix(in srgb, var(--color-highlight) 10%, transparent) 22px 24px)" }}
     >
       <span className="text-[min(9rem,40cqw)] leading-none">{initials}</span>
     </div>

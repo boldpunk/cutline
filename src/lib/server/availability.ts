@@ -9,6 +9,7 @@ import type { Settings } from "./settings";
 
 /** What a specific barber charges and needs for a service right now. */
 export type Offering = {
+  salonId: string;
   barberId: string;
   barberName: string;
   barberSortOrder: number;
@@ -24,6 +25,7 @@ export type Offering = {
 export async function loadOfferings(ex: Executor, serviceId: string, barberIds?: string[]): Promise<Offering[]> {
   const rows = await ex
     .select({
+      salonId: services.salonId,
       barberId: barbers.id,
       barberName: barbers.name,
       barberSortOrder: barbers.sortOrder,
@@ -42,6 +44,7 @@ export async function loadOfferings(ex: Executor, serviceId: string, barberIds?:
     .where(
       and(
         eq(barberServices.serviceId, serviceId),
+        eq(barbers.salonId, services.salonId),
         eq(barbers.active, true),
         eq(services.active, true),
         barberIds ? inArray(barbers.id, barberIds) : undefined,
@@ -49,6 +52,7 @@ export async function loadOfferings(ex: Executor, serviceId: string, barberIds?:
     )
     .orderBy(asc(barbers.sortOrder), asc(barbers.name), asc(barbers.id));
   return rows.map((r) => ({
+    salonId: r.salonId,
     barberId: r.barberId,
     barberName: r.barberName,
     barberSortOrder: r.barberSortOrder,
@@ -91,12 +95,13 @@ function addOverride(target: Map<string, DayOverride>, date: string, kind: "clos
 /** Loads everything needed to compute availability for `barberIds` between two local dates (inclusive). */
 export async function loadSchedule(
   ex: Executor,
-  tz: string,
+  salon: Pick<Settings, "id" | "timezone">,
   barberIds: string[],
   fromDate: string,
   toDate: string,
   opts: { excludeBookingId?: string } = {},
 ): Promise<ScheduleData> {
+  const tz = salon.timezone;
   const data: ScheduleData = {
     tz,
     salonWeekly: {},
@@ -116,12 +121,18 @@ export async function loadSchedule(
     ex
       .select()
       .from(weeklyAvailability)
-      .where(or(isNull(weeklyAvailability.barberId), inArray(weeklyAvailability.barberId, barberIds))),
+      .where(
+        and(
+          eq(weeklyAvailability.salonId, salon.id),
+          or(isNull(weeklyAvailability.barberId), inArray(weeklyAvailability.barberId, barberIds)),
+        ),
+      ),
     ex
       .select()
       .from(scheduleExceptions)
       .where(
         and(
+          eq(scheduleExceptions.salonId, salon.id),
           gte(scheduleExceptions.date, fromDate),
           lte(scheduleExceptions.date, toDate),
           or(isNull(scheduleExceptions.barberId), inArray(scheduleExceptions.barberId, barberIds)),
@@ -273,7 +284,7 @@ export async function nearestSlots(
   let chunkStart = diffDays(fromDate, policy.firstDate) < 0 ? policy.firstDate : fromDate;
   while (out.length < limit && diffDays(policy.lastDate, chunkStart) >= 0) {
     const chunkEnd = diffDays(policy.lastDate, addDays(chunkStart, 13)) < 0 ? policy.lastDate : addDays(chunkStart, 13);
-    const data = await loadSchedule(ex, settings.timezone, ids, chunkStart, chunkEnd);
+    const data = await loadSchedule(ex, settings, ids, chunkStart, chunkEnd);
     for (let d = chunkStart; diffDays(chunkEnd, d) >= 0 && out.length < limit; d = addDays(d, 1)) {
       out.push(...mergeSlots(data, offerings, d, policy).slice(0, limit - out.length));
     }

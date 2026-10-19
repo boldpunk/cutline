@@ -188,6 +188,7 @@ export function BookingWizard({ catalog, config, today }: { catalog: Catalog; co
     if (res.ok) {
       const op: LastOperation = {
         kind: "created",
+        base: config.base,
         code: res.data.code,
         manageUrl: res.data.manageUrl,
         startAt: res.data.startAt,
@@ -249,7 +250,7 @@ export function BookingWizard({ catalog, config, today }: { catalog: Catalog; co
   // ---- Render ----
   return (
     <div className="mx-auto max-w-6xl px-4 pb-16 pt-8 md:pt-12">
-      <h1 className="display text-5xl md:text-6xl">Запись</h1>
+      <h1 className="display text-3xl md:text-[2.75rem]">Запись</h1>
 
       <nav aria-label="Шаги записи" className="mt-6">
         <ol className="flex flex-wrap gap-x-2 gap-y-2 text-sm">
@@ -269,7 +270,7 @@ export function BookingWizard({ catalog, config, today }: { catalog: Catalog; co
             return (
               <li key={s.key}>
                 {reachable && !current ? (
-                  <button type="button" className={`${cls} hover:bg-accent`} onClick={() => go({ step: s.key })}>
+                  <button type="button" className={`${cls} hover:bg-accent-soft`} onClick={() => go({ step: s.key })}>
                     {content}
                   </button>
                 ) : (
@@ -310,7 +311,7 @@ export function BookingWizard({ catalog, config, today }: { catalog: Catalog; co
       )}
 
       <section className="mt-8" aria-labelledby="step-h">
-        <h2 id="step-h" ref={headingRef} tabIndex={-1} className="display text-3xl outline-none md:text-4xl">
+        <h2 id="step-h" ref={headingRef} tabIndex={-1} className="display text-2xl outline-none md:text-3xl">
           {stepIndex + 1}. {STEPS[stepIndex]!.label}
         </h2>
 
@@ -348,7 +349,7 @@ export function BookingWizard({ catalog, config, today }: { catalog: Catalog; co
                             preOffer ? "time" : "barber",
                           )
                         }
-                        className={`flex w-full flex-col rounded-xl border-2 p-4 text-left transition-colors hover:bg-accent ${
+                        className={`flex w-full flex-col rounded-xl border-2 p-4 text-left transition-colors hover:bg-accent-soft ${
                           service?.id === s.id ? "border-ink bg-white" : "border-line bg-card"
                         }`}
                       >
@@ -389,7 +390,7 @@ export function BookingWizard({ catalog, config, today }: { catalog: Catalog; co
                   type="button"
                   aria-pressed={barberId === "any"}
                   onClick={() => advance({ barber: "any", date: null, time: null, avail: null, as: null }, "time")}
-                  className={`flex w-full flex-col rounded-xl border-2 p-4 text-left transition-colors hover:bg-accent ${
+                  className={`flex w-full flex-col rounded-xl border-2 p-4 text-left transition-colors hover:bg-accent-soft ${
                     barberId === "any" ? "border-ink bg-white" : "border-line bg-card"
                   }`}
                 >
@@ -414,7 +415,7 @@ export function BookingWizard({ catalog, config, today }: { catalog: Catalog; co
                       type="button"
                       aria-pressed={barberId === o.barberId}
                       onClick={() => advance({ barber: o.barberId, date: null, time: null, avail: null, as: null }, "time")}
-                      className={`flex w-full flex-col rounded-xl border-2 p-4 text-left transition-colors hover:bg-accent ${
+                      className={`flex w-full flex-col rounded-xl border-2 p-4 text-left transition-colors hover:bg-accent-soft ${
                         barberId === o.barberId ? "border-ink bg-white" : "border-line bg-card"
                       }`}
                     >
@@ -529,7 +530,7 @@ export function BookingWizard({ catalog, config, today }: { catalog: Catalog; co
                 />
                 <span>
                   Согласен(на) на обработку имени и телефона для записи —{" "}
-                  <Link href="/privacy" target="_blank" className="link">
+                  <Link href={`${config.base}/privacy`} target="_blank" className="link">
                     условия
                   </Link>{" "}
                   <span className="text-sm text-muted-text">(версия {config.consentVersion})</span>
@@ -542,7 +543,7 @@ export function BookingWizard({ catalog, config, today }: { catalog: Catalog; co
               )}
             </div>
             {config.mode === "demo" && (
-              <p className="rounded-lg border-2 border-ink bg-accent/40 p-3 text-sm font-medium">
+              <p className="rounded-lg border-2 border-ink bg-accent-soft p-3 text-sm font-medium">
                 Это демо: не вводите реальные данные. Можно указать вымышленное имя и номер вроде +998 90 000 00 00.
               </p>
             )}
@@ -636,7 +637,7 @@ export function BookingWizard({ catalog, config, today }: { catalog: Catalog; co
                 </div>
               )}
               {conflict?.kind === "price_changed" && (
-                <div role="alert" className="rounded-xl border-2 border-ink bg-accent/40 p-4">
+                <div role="alert" className="rounded-xl border-2 border-ink bg-accent-soft p-4">
                   <p className="font-semibold">{conflict.message}</p>
                   <p className="mt-1 text-sm">Новая стоимость указана слева. Нажмите «Подтвердить запись», если она вам подходит.</p>
                 </div>

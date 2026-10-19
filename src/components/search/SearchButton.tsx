@@ -3,12 +3,12 @@ import { useEffect, useState } from "react";
 import { OPEN_SEARCH_EVENT } from "./SearchDialog";
 
 /** Header search trigger. A real link to /search, so it works without JS too. */
-export function SearchButton() {
+export function SearchButton({ href }: { href: string }) {
   const [mac, setMac] = useState(false);
   useEffect(() => setMac(/Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent)), []);
   return (
     <a
-      href="/search"
+      href={href}
       onClick={(e) => {
         if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
         e.preventDefault();

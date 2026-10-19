@@ -7,7 +7,7 @@ import { formatPhone } from "@/lib/domain/phone";
 import { isValidDateString } from "@/lib/domain/time";
 import { formatCode } from "@/lib/server/crypto";
 import { formatDateTimeCompact, STATUS_LABELS } from "@/lib/format";
-import { getSettings } from "@/lib/server/settings";
+import { getSalon } from "@/lib/server/settings";
 import { requireStaff } from "@/lib/server/staff-auth";
 import { listBarbersBasic, listBookings } from "@/lib/server/staff-data";
 
@@ -18,7 +18,7 @@ type SP = Promise<Record<string, string | undefined>>;
 
 export default async function BookingsPage({ searchParams }: { searchParams: SP }) {
   const user = await requireStaff();
-  const settings = await getSettings(getDb());
+  const settings = await getSalon(getDb(), user.salonId);
   const tz = settings.timezone;
   const sp = await searchParams;
   const filters = {
@@ -30,7 +30,7 @@ export default async function BookingsPage({ searchParams }: { searchParams: SP 
     page: Math.max(1, Number(sp.page) || 1),
     pageSize: PAGE_SIZE,
   };
-  const [{ total, rows }, barbers] = await Promise.all([listBookings(user, settings, filters), listBarbersBasic()]);
+  const [{ total, rows }, barbers] = await Promise.all([listBookings(user, settings, filters), listBarbersBasic(user.salonId)]);
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const qs = (patch: Record<string, string | undefined>) => {
     const p = new URLSearchParams();
