@@ -30,6 +30,8 @@ export async function seedDemo(opts: { withBookings?: boolean; log?: (s: string)
   const db = getDb();
   const [existing] = await db.select().from(salons).where(eq(salons.slug, "demo"));
   if (existing) {
+    // A database from an older version: keep its data, only add what's new.
+    await seedMorki(log);
     log("Demo data already present — skipping. (Drop the database to reseed.)");
     return;
   }
@@ -210,23 +212,31 @@ export async function seedDemo(opts: { withBookings?: boolean; log?: (s: string)
     }
   }
 
-  // First real client as an unpublished draft: only facts we have (name from the
-  // Instagram handle, the Instagram link). The owner fills in the rest and publishes.
-  await registerSalon({
-    businessName: "Morki Barber",
-    slug: "morki",
-    ownerName: "Morki",
-    email: "morki@demo.cutline",
-    password: DEMO_PASSWORD,
-    instagramUrl: "https://www.instagram.com/morki_barber/",
-    ownerIsBarber: true,
-  });
-  await db.update(salons).set({ theme: "brass" }).where(eq(salons.slug, "morki"));
+  await seedMorki(log);
 
   log("");
   log("Demo data created (all people, prices and bookings are fictional).");
   log(`Staff login: admin@demo.cutline / ${DEMO_PASSWORD}`);
   log(`Barbers:     timur@demo.cutline, alisher@demo.cutline, dmitry@demo.cutline (same password)`);
+}
+
+// First real client as an unpublished draft: only facts we have (name from the
+// Instagram handle, the Instagram link). The owner fills in the rest and publishes.
+async function seedMorki(log: (s: string) => void) {
+  const db = getDb();
+  const [found] = await db.select({ id: salons.id }).from(salons).where(eq(salons.slug, "morki"));
+  if (!found) {
+    await registerSalon({
+      businessName: "Morki Barber",
+      slug: "morki",
+      ownerName: "Morki",
+      email: "morki@demo.cutline",
+      password: DEMO_PASSWORD,
+      instagramUrl: "https://www.instagram.com/morki_barber/",
+      ownerIsBarber: true,
+    });
+    await db.update(salons).set({ theme: "brass" }).where(eq(salons.slug, "morki"));
+  }
   log(`Draft salon: /morki — owner morki@demo.cutline (same password), not published yet`);
 }
 
