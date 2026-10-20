@@ -10,5 +10,10 @@ export default defineConfig({
     fileParallelism: false,
     testTimeout: 30_000,
     hookTimeout: 60_000,
+    env: {
+      APP_SECRET: "test-secret-test-secret-test-secret-0123456789",
+      SMTP_HOST: "",
+      DATABASE_URL: process.env.DATABASE_URL_TEST ?? "postgres://cutline:cutline@localhost:5432/cutline_test",
+    },
   },
 });

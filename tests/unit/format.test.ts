@@ -25,3 +25,13 @@ describe("phone", () => {
     expect(maskPhone("+998901234567")).toBe("+998 ••• ••• •• 67");
   });
 });
+
+import { suggestSlug } from "@/lib/slug";
+describe("slug suggestion", () => {
+  it("transliterates and cleans names", () => {
+    expect(suggestSlug("Барбершоп Морки")).toBe("barbershop-morki");
+    expect(suggestSlug("Morki Barber!")).toBe("morki-barber");
+    expect(suggestSlug("  Щёлк & Ко  ")).toBe("shchyolk-ko");
+    expect(suggestSlug("O‘zbek sartaroshxona")).toBe("o-zbek-sartaroshxona");
+  });
+});

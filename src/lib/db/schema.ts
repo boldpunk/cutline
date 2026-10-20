@@ -15,6 +15,7 @@ import {
   timestamp,
   uuid,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
 const bytea = customType<{ data: Buffer; driverData: Buffer }>({
   dataType: () => "bytea",
@@ -24,39 +25,60 @@ const tstz = (name: string) => timestamp(name, { withTimezone: true, mode: "date
 
 export type SocialLink = { label: string; url: string };
 
-export const salonSettings = pgTable("salon_settings", {
-  id: smallint("id").primaryKey().default(1),
+export const SALON_THEMES = ["pole", "night", "mint", "brass"] as const;
+export type SalonTheme = (typeof SALON_THEMES)[number];
+
+export const salons = pgTable("salons", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  slug: text("slug").notNull(),
+  published: boolean("published").notNull().default(false),
+  theme: text("theme").$type<SalonTheme>().notNull().default("pole"),
+  instagramUrl: text("instagram_url"),
   name: text("name").notNull(),
   tagline: text("tagline"),
   about: text("about"),
   address: text("address"),
   mapUrl: text("map_url"),
+  heroMediaId: uuid("hero_media_id"),
   phone: text("phone"),
   socials: jsonb("socials").$type<SocialLink[]>().notNull().default([]),
-  timezone: text("timezone").notNull(),
-  slotStepMin: integer("slot_step_min").notNull(),
-  minLeadMin: integer("min_lead_min").notNull(),
-  horizonDays: integer("horizon_days").notNull(),
-  cancelCutoffHours: integer("cancel_cutoff_hours").notNull(),
-  mode: text("mode").$type<"demo" | "live">().notNull(),
-  barbersCanBlock: boolean("barbers_can_block").notNull(),
+  amenities: text("amenities").array().notNull().default(sql`'{}'::text[]`),
+  timezone: text("timezone").notNull().default("Asia/Tashkent"),
+  slotStepMin: integer("slot_step_min").notNull().default(15),
+  minLeadMin: integer("min_lead_min").notNull().default(60),
+  horizonDays: integer("horizon_days").notNull().default(60),
+  cancelCutoffHours: integer("cancel_cutoff_hours").notNull().default(12),
+  mode: text("mode").$type<"demo" | "live">().notNull().default("live"),
+  barbersCanBlock: boolean("barbers_can_block").notNull().default(true),
   privacyController: text("privacy_controller"),
   privacyContact: text("privacy_contact"),
   retentionDays: integer("retention_days"),
-  consentVersion: text("consent_version").notNull(),
+  consentVersion: text("consent_version").notNull().default("v1"),
+  createdAt: tstz("created_at").notNull().defaultNow(),
   updatedAt: tstz("updated_at").notNull().defaultNow(),
 });
 
 export const media = pgTable("media", {
   id: uuid("id").primaryKey().defaultRandom(),
+  salonId: uuid("salon_id"),
   contentType: text("content_type").notNull(),
   bytes: bytea("bytes").notNull(),
   size: integer("size").notNull(),
   createdAt: tstz("created_at").notNull().defaultNow(),
 });
 
+export const salonGallery = pgTable("salon_gallery", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  salonId: uuid("salon_id").notNull(),
+  mediaId: uuid("media_id").notNull(),
+  caption: text("caption"),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: tstz("created_at").notNull().defaultNow(),
+});
+
 export const barbers = pgTable("barbers", {
   id: uuid("id").primaryKey().defaultRandom(),
+  salonId: uuid("salon_id").notNull(),
   name: text("name").notNull(),
   specialization: text("specialization"),
   bio: text("bio"),
@@ -70,6 +92,7 @@ export const barbers = pgTable("barbers", {
 
 export const services = pgTable("services", {
   id: uuid("id").primaryKey().defaultRandom(),
+  salonId: uuid("salon_id").notNull(),
   name: text("name").notNull(),
   description: text("description"),
   category: text("category"),
@@ -87,6 +110,7 @@ export const services = pgTable("services", {
 export const barberServices = pgTable(
   "barber_services",
   {
+  salonId: uuid("salon_id").notNull(),
     barberId: uuid("barber_id").notNull(),
     serviceId: uuid("service_id").notNull(),
     priceUzs: bigint("price_uzs", { mode: "number" }),
@@ -99,6 +123,7 @@ export type Role = "admin" | "barber";
 
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
+  salonId: uuid("salon_id").notNull(),
   email: text("email").notNull(),
   name: text("name").notNull(),
   passwordHash: text("password_hash").notNull(),
@@ -118,6 +143,7 @@ export const sessions = pgTable("sessions", {
 
 export const weeklyAvailability = pgTable("weekly_availability", {
   id: uuid("id").primaryKey().defaultRandom(),
+  salonId: uuid("salon_id").notNull(),
   barberId: uuid("barber_id"),
   weekday: smallint("weekday").notNull(),
   startMin: smallint("start_min").notNull(),
@@ -126,6 +152,7 @@ export const weeklyAvailability = pgTable("weekly_availability", {
 
 export const scheduleExceptions = pgTable("schedule_exceptions", {
   id: uuid("id").primaryKey().defaultRandom(),
+  salonId: uuid("salon_id").notNull(),
   barberId: uuid("barber_id"),
   date: date("date", { mode: "string" }).notNull(),
   kind: text("kind").$type<"closed" | "hours">().notNull(),
@@ -140,6 +167,7 @@ export type BlockKind = "break" | "vacation" | "other";
 
 export const timeBlocks = pgTable("time_blocks", {
   id: uuid("id").primaryKey().defaultRandom(),
+  salonId: uuid("salon_id").notNull(),
   barberId: uuid("barber_id").notNull(),
   kind: text("kind").$type<BlockKind>().notNull(),
   startAt: tstz("start_at").notNull(),
@@ -160,6 +188,7 @@ export type BookingStatus = (typeof BOOKING_STATUSES)[number];
 
 export const bookings = pgTable("bookings", {
   id: uuid("id").primaryKey().defaultRandom(),
+  salonId: uuid("salon_id").notNull(),
   code: text("code").notNull(),
   accessTokenHash: text("access_token_hash").notNull(),
   barberId: uuid("barber_id").notNull(),
@@ -213,6 +242,7 @@ export const bookingEvents = pgTable("booking_events", {
 
 export const auditLog = pgTable("audit_log", {
   id: bigserial("id", { mode: "number" }).primaryKey(),
+  salonId: uuid("salon_id"),
   actorUserId: uuid("actor_user_id"),
   action: text("action").notNull(),
   entityType: text("entity_type").notNull(),

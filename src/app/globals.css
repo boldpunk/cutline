@@ -1,0 +1,289 @@
+@import "tailwindcss";
+
+/* Design tokens. Defaults = "pole" theme; [data-salon-theme] blocks below
+   re-point the same variables, so every utility class follows the theme.
+   Contrast of every text pair is checked by `npm run check:contrast`. */
+@theme {
+  --color-ink: #141a2e;        /* text on light, background of dark sections */
+  --color-paper: #f2f1ed;      /* page background */
+  --color-surface: #1f2742;    /* cards on dark sections */
+  --color-card: #fbfaf7;       /* cards on light */
+  --color-line: #d4d2ca;
+  --color-control: #85837b;    /* input borders (≥3:1) */
+  --color-muted: #7a7b82;      /* large text / icons only */
+  --color-muted-text: #52545e; /* small text on light */
+  --color-muted-dark: #aab0c4; /* small text on ink */
+  --color-accent: #c8261f;     /* brand: primary buttons */
+  --color-on-accent: #ffffff;  /* text on accent */
+  --color-accent-soft: #f6dad6;/* hover / selection tint on light (ink text) */
+  --color-highlight: #ff8a7a;  /* accent used as text on ink */
+  --color-pole-a: #c8261f;
+  --color-pole-b: #2c47c9;
+  --color-danger: #a3261b;
+  --color-danger-bg: #f8e3df;
+  --color-success: #2f6b2a;
+  --color-success-bg: #e3efd9;
+
+  --font-display: "Unbounded Variable", "Arial Black", system-ui, sans-serif;
+  --font-sans: "Manrope Variable", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+[data-salon-theme="night"] {
+  --color-ink: #171715;
+  --color-paper: #f3f0e8;
+  --color-surface: #262622;
+  --color-card: #fbfaf6;
+  --color-line: #c9c8be;
+  --color-control: #8a897f;
+  --color-muted: #77776f;
+  --color-muted-text: #5f5f58;
+  --color-muted-dark: #a3a39a;
+  --color-accent: #d9f05a;
+  --color-on-accent: #171715;
+  --color-accent-soft: #eef7c4;
+  --color-highlight: #d9f05a;
+  --color-pole-a: #d9f05a;
+  --color-pole-b: #f3f0e8;
+}
+[data-salon-theme="mint"] {
+  --color-ink: #0f2a24;
+  --color-paper: #eef3ef;
+  --color-surface: #173a32;
+  --color-card: #f8fbf9;
+  --color-line: #c6d3cc;
+  --color-control: #7a8b84;
+  --color-muted: #6e7f78;
+  --color-muted-text: #4a5c55;
+  --color-muted-dark: #a3bdb3;
+  --color-accent: #177556;
+  --color-on-accent: #ffffff;
+  --color-accent-soft: #d2ede1;
+  --color-highlight: #7fe3b9;
+  --color-pole-a: #177556;
+  --color-pole-b: #7fe3b9;
+}
+[data-salon-theme="brass"] {
+  --color-ink: #1e1913;
+  --color-paper: #f4efe7;
+  --color-surface: #2c251c;
+  --color-card: #fbf8f3;
+  --color-line: #d6cdbf;
+  --color-control: #8a8072;
+  --color-muted: #857a6b;
+  --color-muted-text: #5c5244;
+  --color-muted-dark: #b8ab97;
+  --color-accent: #d9a441;
+  --color-on-accent: #1e1913;
+  --color-accent-soft: #f4e4c4;
+  --color-highlight: #e8b95a;
+  --color-pole-a: #d9a441;
+  --color-pole-b: #8c3b2a;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    scroll-padding-top: 5rem;
+  }
+  body {
+    background: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    overflow-x: clip;
+  }
+  :focus-visible {
+    outline: 3px solid var(--color-ink);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+  .on-dark :focus-visible,
+  .on-dark:focus-visible {
+    outline-color: var(--color-highlight);
+  }
+  ::selection {
+    background: var(--color-accent-soft);
+    color: var(--color-ink);
+  }
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
+}
+
+@layer components {
+  .display {
+    font-family: var(--font-display);
+    font-weight: 700;
+    letter-spacing: -0.025em;
+    line-height: 1.02;
+    text-wrap: balance;
+    /* Owners type their own names; a long word must never widen the page. */
+    overflow-wrap: break-word;
+    min-width: 0;
+  }
+  /* Barber-pole stripes: the recurring motif. */
+  .pole {
+    background-image: repeating-linear-gradient(
+      -45deg,
+      var(--color-pole-a) 0 14px,
+      var(--color-paper) 14px 28px,
+      var(--color-pole-b) 28px 42px,
+      var(--color-paper) 42px 56px
+    );
+    background-size: 79.2px 79.2px;
+  }
+  .pole-turning {
+    animation: pole-turn 6s linear infinite;
+  }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    min-height: 2.75rem;
+    padding: 0.625rem 1.125rem;
+    border-radius: 999px;
+    font-weight: 600;
+    line-height: 1.2;
+    text-align: center;
+    transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+    cursor: pointer;
+    text-decoration: none;
+  }
+  .btn:active {
+    transform: translateY(1px);
+  }
+  .btn[disabled],
+  .btn[aria-disabled="true"] {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+  }
+  .btn-primary {
+    background: var(--color-accent);
+    color: var(--color-on-accent);
+    border: 2px solid var(--color-accent);
+    box-shadow: 0 2px 0 0 var(--color-ink);
+  }
+  .btn-primary:hover:not([disabled]) {
+    filter: brightness(1.06);
+    box-shadow: 0 3px 0 0 var(--color-ink);
+  }
+  .btn-dark {
+    background: var(--color-ink);
+    color: var(--color-paper);
+    border: 2px solid var(--color-ink);
+  }
+  .btn-dark:hover:not([disabled]) {
+    background: var(--color-surface);
+  }
+  .btn-ghost {
+    background: transparent;
+    color: var(--color-ink);
+    border: 2px solid var(--color-ink);
+  }
+  .btn-ghost:hover:not([disabled]) {
+    background: rgb(23 23 21 / 0.06);
+  }
+  .btn-danger {
+    background: var(--color-danger);
+    color: #fff;
+    border: 2px solid var(--color-danger);
+  }
+  .btn-sm {
+    min-height: 2.25rem;
+    padding: 0.375rem 0.875rem;
+    font-size: 0.875rem;
+  }
+  .field-label {
+    display: block;
+    font-weight: 600;
+    font-size: 0.9375rem;
+    margin-bottom: 0.375rem;
+  }
+  .field-hint {
+    font-size: 0.8125rem;
+    color: var(--color-muted-text);
+    margin-top: 0.25rem;
+  }
+  .field-error {
+    font-size: 0.875rem;
+    color: var(--color-danger);
+    margin-top: 0.375rem;
+    font-weight: 500;
+  }
+  .input {
+    display: block;
+    width: 100%;
+    min-height: 2.75rem;
+    padding: 0.5rem 0.75rem;
+    border: 1.5px solid var(--color-control);
+    border-radius: 0.5rem;
+    background: #fff;
+    color: var(--color-ink);
+  }
+  .input:focus-visible {
+    outline: 3px solid var(--color-ink);
+    outline-offset: 1px;
+    border-color: var(--color-ink);
+  }
+  .input[aria-invalid="true"] {
+    border-color: var(--color-danger);
+  }
+  .card {
+    background: var(--color-card);
+    border: 1px solid var(--color-line);
+    border-radius: 1rem;
+  }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.125rem 0.5rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    border: 1px solid currentColor;
+  }
+  .link {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    text-decoration-thickness: 1.5px;
+  }
+  .link:hover {
+    text-decoration-thickness: 2.5px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@keyframes pole-turn {
+  to {
+    background-position: 0 79.2px;
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.animate-rise {
+  animation: rise 0.25s ease-out both;
+}

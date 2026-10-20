@@ -1,0 +1,76 @@
+# Local / single-server deployment. Data lives in the "pgdata" volume and
+# survives `docker compose down` / restarts (use `down -v` only to wipe it).
+#
+#   cp .env.example .env    # set APP_SECRET, APP_URL, optionally SMTP_*
+#   docker compose up -d --build
+#   docker compose run --rm seed-demo          # fictional demo data (demo only!)
+#   docker compose run --rm app npm run create-admin -- --email you@example.com
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: cutline
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cutline}
+      POSTGRES_DB: cutline
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cutline -d cutline"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  migrate:
+    build: .
+    image: cutline:latest
+    command: ["npx", "tsx", "scripts/migrate.ts"]
+    environment: &appenv
+      DATABASE_URL: postgres://cutline:${POSTGRES_PASSWORD:-cutline}@db:5432/cutline
+      APP_URL: ${APP_URL:-http://localhost:3000}
+      APP_SECRET: ${APP_SECRET:?Set APP_SECRET in .env (32+ random chars)}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      TRUST_PROXY: ${TRUST_PROXY:-false}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      REMINDER_HOURS_BEFORE: ${REMINDER_HOURS_BEFORE:-24}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  app:
+    image: cutline:latest
+    restart: unless-stopped
+    environment: *appenv
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  worker:
+    image: cutline:latest
+    restart: unless-stopped
+    command: ["npx", "tsx", "src/worker/index.ts"]
+    healthcheck:
+      disable: true
+    environment: *appenv
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  seed-demo:
+    image: cutline:latest
+    profiles: ["tools"]
+    command: ["npx", "tsx", "scripts/seed-demo.ts"]
+    environment: *appenv
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  pgdata:
