@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { heroPhotoAction, saveSettingsAction } from "@/app/staff/(app)/admin-actions";
 import type { SalonTheme } from "@/lib/db/schema";
 import type { ActionResult } from "@/lib/server/action-result";
+import { AMENITIES, type AmenityKey } from "@/lib/amenities";
 import { THEMES } from "@/lib/themes";
 import { ResultNote } from "./ResultNote";
 
@@ -18,6 +19,7 @@ export type SettingsValues = {
   mapUrl: string;
   phone: string;
   socials: { label: string; url: string }[];
+  amenities: AmenityKey[];
   timezone: string;
   slotStepMin: number;
   minLeadMin: number;
@@ -110,6 +112,27 @@ export function SettingsForm({ initial, tzLocked, tz, host }: { initial: Setting
               + ссылка
             </button>
           )}
+        </div>
+      </fieldset>
+
+      <fieldset className="rounded-xl border border-line bg-card p-4">
+        <legend className="px-1 font-semibold">Что есть в салоне</legend>
+        <p className="mb-3 text-sm text-muted-text">Отметьте только то, что действительно есть, — на странице это будет списком удобств.</p>
+        <div className="flex flex-wrap gap-2">
+          {(Object.keys(AMENITIES) as AmenityKey[]).map((key) => {
+            const on = v.amenities.includes(key);
+            return (
+              <label key={key} className={`flex cursor-pointer items-center gap-2 rounded-full border-2 px-3 py-1.5 text-sm ${on ? "border-ink bg-white font-semibold" : "border-line"}`}>
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 accent-ink"
+                  checked={on}
+                  onChange={() => set({ amenities: on ? v.amenities.filter((a) => a !== key) : [...v.amenities, key] })}
+                />
+                {AMENITIES[key]}
+              </label>
+            );
+          })}
         </div>
       </fieldset>
 

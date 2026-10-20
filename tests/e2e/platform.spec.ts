@@ -33,9 +33,9 @@ test("a business opens its own page: signup → draft (hidden) → setup checkli
   await page.goto("/");
   await page.context().clearCookies();
   await page.goto("/start");
-  await page.getByLabel("Адрес вашей страницы").fill("demo");
+  await page.getByLabel("Адрес вашей страницы").fill(slug);
   await expect(page.getByText("Этот адрес уже занят.")).toBeVisible();
-  await page.getByLabel("Адрес вашей страницы").fill("staff");
+  await page.getByLabel("Адрес вашей страницы").fill("demo");
   await expect(page.getByText(/зарезервирован/)).toBeVisible();
 });
 
@@ -43,4 +43,16 @@ test("platform home lists published pages but not drafts", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("link", { name: /CUTLINE.*\/demo/ })).toBeVisible();
   await expect(page.getByText("Morki Barber")).toHaveCount(0);
+});
+
+test("demo tour: salon page shows works and amenities; one-click demo cabinet", async ({ page }) => {
+  await page.goto("/demo");
+  await expect(page.getByRole("heading", { name: "Работы" })).toBeVisible();
+  await expect(page.getByText("Кофе и чай")).toBeVisible();
+  await page.goto("/");
+  await page.getByRole("button", { name: "Войти как администратор" }).click();
+  await expect(page).toHaveURL(/\/staff\/calendar$/);
+  await page.getByRole("link", { name: "Работы" }).click();
+  await expect(page.getByRole("heading", { name: "Работы" })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Удалить/ }).first()).toBeVisible();
 });

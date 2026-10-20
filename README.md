@@ -69,7 +69,7 @@ npm run demo
 2. Нажмите **Apply**. Render по `render.yaml` создаст сайт и базу PostgreSQL (бесплатные тарифы, Франкфурт), сгенерирует `APP_SECRET` и при каждом запуске применит миграции.
 3. Через 5–10 минут сайт откроется по адресу вида `https://cutline.onrender.com`; `APP_URL` подставляется сам.
 
-Демо-данных там нет: бизнесы регистрируются на `/start`. Инструкция для владельца барбершопа — [`docs/brief-for-barber.md`](docs/brief-for-barber.md).
+При каждом запуске (`npm start` → `scripts/prestart.ts`, активен при `RENDER=true`) демо-салон `/demo` пересобирается: свежие вымышленные записи, иллюстрации, портфолио; правки гостей стираются. Реальные салоны с `/start` не трогаются (тесты `tests/integration/showcase.test.ts`). Кабинет демо открывается без пароля кнопками «Войти как администратор / как мастер». Сценарий показа — [`docs/demo-script.md`](docs/demo-script.md). Инструкция для владельца барбершопа — [`docs/brief-for-barber.md`](docs/brief-for-barber.md).
 
 Ограничения бесплатного тарифа Render: сайт засыпает после 15 минут без посетителей (первое открытие — до минуты), бесплатная база удаляется через 30 дней, если не перейти на платный тариф. Фоновый worker уведомлений не запускается (нужен SMTP и платный Background Worker).
 
@@ -199,8 +199,8 @@ docker compose exec -T db pg_restore -U cutline -d cutline_restored --no-owner <
 | --- | --- | --- |
 | Типы | `npm run typecheck` | ✅ без ошибок |
 | Сборка | `npm run build` | ✅ |
-| Unit + интеграция | `npm test` | ✅ 76/76 (9 файлов; в т. ч. изоляция салонов и регистрация) |
-| E2E | `npm run test:e2e` | ✅ 16/16 (desktop 1440 + mobile 360 Pixel 7, против `next start`) |
+| Unit + интеграция | `npm test` | ✅ 79/79 (10 файлов; в т. ч. изоляция салонов, регистрация, демо-витрина) |
+| E2E | `npm run test:e2e` | ✅ 17/17 (desktop 1440 + mobile 360 Pixel 7, против `next start`) |
 | Контраст | `npm run check:contrast` | ✅ все пары текста ≥ 4.5:1 во всех 4 темах (цвета читаются из `globals.css`) |
 | Docker | `docker compose up`, restart, down/up | ✅ данные сохраняются |
 

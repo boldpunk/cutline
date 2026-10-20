@@ -23,6 +23,7 @@ export default async function StaffLayout({ children }: { children: React.ReactN
           { href: "/staff/schedule", label: "График" },
           { href: "/staff/services", label: "Услуги" },
           { href: "/staff/barbers", label: "Мастера" },
+          { href: "/staff/gallery", label: "Работы" },
           { href: "/staff/users", label: "Сотрудники" },
           { href: "/staff/settings", label: "Настройки" },
           { href: "/staff/notifications", label: "Уведомления" },

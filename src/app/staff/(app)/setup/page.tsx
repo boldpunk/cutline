@@ -99,6 +99,12 @@ export default async function SetupPage() {
             — только те, что вы вправе публиковать
           </li>
           <li>
+            <Link className="link" href="/staff/gallery">
+              Работы
+            </Link>{" "}
+            — портфолио: фейды, бороды, детские стрижки
+          </li>
+          <li>
             <Link className="link" href="/staff/users">
               Доступ для мастеров
             </Link>

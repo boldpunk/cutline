@@ -25,7 +25,7 @@ export const RESERVED_SLUGS = new Set([
   "api", "staff", "booking", "start", "search", "media", "admin", "login", "logout", "signup", "register",
   "about", "pricing", "privacy", "terms", "help", "support", "blog", "static", "assets", "public", "app",
   "www", "mail", "robots", "sitemap", "favicon", "cutline", "platform", "settings", "account", "new",
-  "_next", "next", "book", "services", "team",
+  "_next", "next", "book", "services", "team", "demo",
 ]);
 
 export function slugProblem(slug: string): string | null {

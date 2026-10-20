@@ -353,7 +353,7 @@ export function BookingWizard({ catalog, config, today }: { catalog: Catalog; co
                           service?.id === s.id ? "border-ink bg-white" : "border-line bg-card"
                         }`}
                       >
-                        <span className="flex w-full items-baseline justify-between gap-3">
+                        <span className="flex w-full flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
                           <span className="text-lg font-semibold">{s.name}</span>
                           <span className="shrink-0 font-semibold tabular-nums">
                             {preOffer
@@ -394,7 +394,7 @@ export function BookingWizard({ catalog, config, today }: { catalog: Catalog; co
                     barberId === "any" ? "border-ink bg-white" : "border-line bg-card"
                   }`}
                 >
-                  <span className="flex w-full items-baseline justify-between gap-3">
+                  <span className="flex w-full flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
                     <span className="text-lg font-semibold">Любой мастер</span>
                     <span className="shrink-0 font-semibold tabular-nums">
                       {service.minPrice === service.maxPrice ? formatUzs(service.minPrice) : `${formatUzs(service.minPrice)} – ${formatUzs(service.maxPrice)}`}
@@ -419,7 +419,7 @@ export function BookingWizard({ catalog, config, today }: { catalog: Catalog; co
                         barberId === o.barberId ? "border-ink bg-white" : "border-line bg-card"
                       }`}
                     >
-                      <span className="flex w-full items-baseline justify-between gap-3">
+                      <span className="flex w-full flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
                         <span className="text-lg font-semibold">{b.name}</span>
                         <span className="shrink-0 font-semibold tabular-nums">{formatUzs(priceOverrides[o.barberId] ?? o.priceUzs)}</span>
                       </span>

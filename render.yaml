@@ -1,6 +1,8 @@
 # One-click deploy to Render: https://render.com/deploy?repo=https://github.com/boldpunk/cutline
-# Creates the site and a PostgreSQL database. Migrations run on every start.
-# No demo data: businesses register themselves at /start.
+# Creates the site and a PostgreSQL database. Every start applies migrations;
+# `npm start` then rebuilds the fictional demo salon (/demo) with fresh bookings
+# (the prestart hook, active when RENDER or SEED_SHOWCASE is set). Real salons,
+# registered at /start, are never touched.
 services:
   - type: web
     name: cutline

@@ -15,6 +15,7 @@ import {
   timestamp,
   uuid,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
 const bytea = customType<{ data: Buffer; driverData: Buffer }>({
   dataType: () => "bytea",
@@ -41,6 +42,7 @@ export const salons = pgTable("salons", {
   heroMediaId: uuid("hero_media_id"),
   phone: text("phone"),
   socials: jsonb("socials").$type<SocialLink[]>().notNull().default([]),
+  amenities: text("amenities").array().notNull().default(sql`'{}'::text[]`),
   timezone: text("timezone").notNull().default("Asia/Tashkent"),
   slotStepMin: integer("slot_step_min").notNull().default(15),
   minLeadMin: integer("min_lead_min").notNull().default(60),
@@ -62,6 +64,15 @@ export const media = pgTable("media", {
   contentType: text("content_type").notNull(),
   bytes: bytea("bytes").notNull(),
   size: integer("size").notNull(),
+  createdAt: tstz("created_at").notNull().defaultNow(),
+});
+
+export const salonGallery = pgTable("salon_gallery", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  salonId: uuid("salon_id").notNull(),
+  mediaId: uuid("media_id").notNull(),
+  caption: text("caption"),
+  sortOrder: integer("sort_order").notNull().default(0),
   createdAt: tstz("created_at").notNull().defaultNow(),
 });
 

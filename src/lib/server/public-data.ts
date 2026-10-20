@@ -2,7 +2,7 @@
 import { cache } from "react";
 import { and, asc, eq, isNull } from "drizzle-orm";
 import { getDb } from "@/lib/db/client";
-import { barberServices, barbers, salons as salonsTable, services, weeklyAvailability } from "@/lib/db/schema";
+import { barberServices, barbers, salonGallery, salons as salonsTable, services, weeklyAvailability } from "@/lib/db/schema";
 import { addDays } from "@/lib/domain/time";
 import { clientPolicy, loadOfferings, nearestSlots } from "./availability";
 import { env } from "./env";
@@ -37,6 +37,17 @@ export type Catalog = { services: PublicService[]; barbers: PublicBarber[] };
 
 export function mediaUrl(id: string | null): string | null {
   return id ? `/media/${id}` : null;
+}
+
+export type GalleryItem = { id: string; url: string; caption: string | null };
+
+export async function getGallery(salonId: string): Promise<GalleryItem[]> {
+  const rows = await getDb()
+    .select({ id: salonGallery.id, mediaId: salonGallery.mediaId, caption: salonGallery.caption })
+    .from(salonGallery)
+    .where(eq(salonGallery.salonId, salonId))
+    .orderBy(asc(salonGallery.sortOrder), asc(salonGallery.createdAt));
+  return rows.map((r) => ({ id: r.id, url: mediaUrl(r.mediaId)!, caption: r.caption }));
 }
 
 /** Active services that at least one active barber performs, with real per-barber prices. */

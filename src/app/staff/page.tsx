@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { getDb } from "@/lib/db/client";
 import { findSalonBySlug } from "@/lib/server/settings";
 import { getStaff } from "@/lib/server/staff-auth";
+import { demoLogin } from "./actions";
 import { LoginForm } from "./LoginForm";
 
 export const dynamic = "force-dynamic";
@@ -29,9 +30,24 @@ export default async function StaffLoginPage() {
           <LoginForm />
         </div>
         {demo?.mode === "demo" && (
-          <p className="mt-6 rounded-lg bg-accent-soft p-3 text-xs">
-            Демо: admin@demo.cutline или timur@demo.cutline, пароль из README (по умолчанию <code>demo-cutline-2026</code>).
-          </p>
+          <div className="mt-6 rounded-xl bg-accent-soft p-4">
+            <p className="text-sm font-semibold">Посмотреть кабинет демо-салона</p>
+            <p className="mt-1 text-xs text-muted-text">Вымышленные данные, обновляются при перезапуске. Пароль не нужен.</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <form action={demoLogin}>
+                <input type="hidden" name="role" value="admin" />
+                <button type="submit" className="btn btn-dark btn-sm">
+                  Как администратор
+                </button>
+              </form>
+              <form action={demoLogin}>
+                <input type="hidden" name="role" value="barber" />
+                <button type="submit" className="btn btn-ghost btn-sm">
+                  Как мастер
+                </button>
+              </form>
+            </div>
+          </div>
         )}
       </div>
     </main>

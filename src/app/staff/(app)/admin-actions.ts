@@ -5,7 +5,8 @@ import { revalidatePath } from "next/cache";
 import { and, eq, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "@/lib/db/client";
-import { SALON_THEMES, barberServices, barbers, bookings, media, salons, services, users } from "@/lib/db/schema";
+import { SALON_THEMES, barberServices, barbers, bookings, media, salonGallery, salons, services, users } from "@/lib/db/schema";
+import { AMENITY_KEYS } from "@/lib/amenities";
 import { isValidTimeZone } from "@/lib/domain/time";
 import { slugProblem } from "@/lib/server/settings";
 import { runAction, type ActionResult } from "@/lib/server/action-result";
@@ -215,6 +216,48 @@ export async function heroPhotoAction(form: FormData): Promise<ActionResult> {
   });
 }
 
+const GALLERY_MAX = 24;
+
+/** Add a work to the salon's portfolio. Only photos the salon may publish. */
+export async function addGalleryAction(form: FormData): Promise<ActionResult> {
+  return runAction(async () => {
+    const user = await requireAdmin();
+    if (form.get("rights") !== "on") throw new DomainError("validation", "Подтвердите, что у салона есть право публиковать это фото.");
+    const caption = z.string().trim().max(80).parse(form.get("caption") ?? "") || null;
+    const db = getDb();
+    const [{ n }] = (await db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(salonGallery)
+      .where(eq(salonGallery.salonId, user.salonId))) as [{ n: number }];
+    if (n >= GALLERY_MAX) throw new DomainError("validation", `Не больше ${GALLERY_MAX} работ. Удалите старые.`);
+    const mediaId = await storeImage(form.get("photo") as File | null, user.salonId);
+    const [row] = await db
+      .insert(salonGallery)
+      .values({ salonId: user.salonId, mediaId, caption, sortOrder: n + 1 })
+      .returning({ id: salonGallery.id });
+    await audit(db, user.salonId, user.id, "gallery.add", "gallery", row!.id);
+    revalidatePath("/", "layout");
+    return { ok: true, message: "Работа добавлена." };
+  });
+}
+
+export async function removeGalleryAction(id: string): Promise<ActionResult> {
+  return runAction(async () => {
+    const user = await requireAdmin();
+    const gid = uuid.parse(id);
+    const db = getDb();
+    const [row] = await db
+      .delete(salonGallery)
+      .where(and(eq(salonGallery.id, gid), eq(salonGallery.salonId, user.salonId)))
+      .returning({ mediaId: salonGallery.mediaId });
+    if (!row) throw new DomainError("not_found", "Работа не найдена.");
+    await db.delete(media).where(and(eq(media.id, row.mediaId), eq(media.salonId, user.salonId)));
+    await audit(db, user.salonId, user.id, "gallery.remove", "gallery", gid);
+    revalidatePath("/", "layout");
+    return { ok: true, message: "Работа удалена." };
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Staff accounts
 // ---------------------------------------------------------------------------
@@ -315,6 +358,7 @@ const settingsSchema = z.object({
   mapUrl: optText(500).refine((v) => v === null || /^https?:\/\//.test(v), "Ссылка должна начинаться с http(s)://"),
   phone: optText(40),
   socials: socialSchema,
+  amenities: z.array(z.enum(AMENITY_KEYS)).max(12).transform((a) => [...new Set(a)]),
   timezone: z.string().refine(isValidTimeZone, "Неизвестный часовой пояс IANA"),
   slotStepMin: z.coerce.number().refine((n) => [5, 10, 15, 20, 30, 60].includes(n), "Допустимо 5, 10, 15, 20, 30 или 60"),
   minLeadMin: z.coerce.number().int().min(0).max(10080),
@@ -335,6 +379,9 @@ export async function saveSettingsAction(input: z.input<typeof settingsSchema>):
     await db.transaction(async (tx) => {
       const [current] = await tx.select().from(salons).where(eq(salons.id, user.salonId)).for("update");
       if (!current) throw new DomainError("not_found", "Салон не найден.");
+      if (data.slug !== current.slug && current.mode === "demo") {
+        throw new DomainError("validation", "В демо-салоне адрес страницы не меняется.", { fields: { slug: "В демо адрес фиксирован" } });
+      }
       if (data.slug !== current.slug) {
         const problem = slugProblem(data.slug);
         if (problem) throw new DomainError("validation", problem, { fields: { slug: problem } });

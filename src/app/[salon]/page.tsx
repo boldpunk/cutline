@@ -6,7 +6,8 @@ import { formatUzs } from "@/lib/domain/money";
 import { todayIn, utcToZoned, addDays } from "@/lib/domain/time";
 import { formatDayLong, formatTime } from "@/lib/format";
 import { groupHours } from "@/lib/hours";
-import { getCatalog, getNearestSlot, getSalonHours, loadSalonPage, mediaUrl } from "@/lib/server/public-data";
+import { amenityLabels } from "@/lib/amenities";
+import { getCatalog, getGallery, getNearestSlot, getSalonHours, loadSalonPage, mediaUrl } from "@/lib/server/public-data";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +24,15 @@ export default async function HomePage({ params }: { params: Promise<{ salon: st
   if (!page) notFound();
   const settings = page.salon;
   const base = `/${settings.slug}`;
-  const [catalog, hours] = await Promise.all([getCatalog(settings.id), getSalonHours(settings.id)]);
+  const [catalog, hours, gallery] = await Promise.all([getCatalog(settings.id), getSalonHours(settings.id), getGallery(settings.id)]);
+  const amenities = amenityLabels(settings.amenities);
+  // A large first tile only when the rest fills whole rows (1 + 4 or 1 + 8).
+  const shown = gallery.length >= 9 ? gallery.slice(0, 9) : gallery.length >= 5 ? gallery.slice(0, 5) : gallery;
+  const featured = shown.length === 5 || shown.length === 9;
+  const links = [
+    ...(settings.instagramUrl ? [{ label: "Instagram", url: settings.instagramUrl }] : []),
+    ...settings.socials,
+  ];
   const nearest = await getNearestSlot(settings, catalog);
   const tz = settings.timezone;
   const hero = mediaUrl(settings.heroMediaId);
@@ -73,7 +82,7 @@ export default async function HomePage({ params }: { params: Promise<{ salon: st
 
           {hero ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={hero} alt="" className="aspect-[4/5] w-full rounded-2xl object-cover" />
+            <img src={hero} alt="" className="aspect-[16/11] w-full rounded-2xl object-cover md:aspect-[4/5]" />
           ) : (
             <div className="relative overflow-hidden rounded-3xl border border-paper/10 bg-surface p-6 shadow-2xl sm:p-8">
               <div aria-hidden className="pole absolute inset-x-0 top-0 h-1.5" />
@@ -134,6 +143,33 @@ export default async function HomePage({ params }: { params: Promise<{ salon: st
         )}
       </section>
 
+      {/* Works */}
+      {gallery.length > 0 && (
+        <section className="mx-auto max-w-6xl px-4 pb-14 md:pb-20" aria-labelledby="works-h">
+          <h2 id="works-h" className="display text-3xl md:text-[2.75rem]">
+            Работы
+          </h2>
+          <ul className="mt-8 grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
+            {shown.map((g, i) => (
+              <li key={g.id} className={`group relative overflow-hidden rounded-2xl bg-card ${i === 0 && featured ? "col-span-2 row-span-2" : ""}`}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={g.url}
+                  alt={g.caption ?? "Работа салона"}
+                  loading={i > 2 ? "lazy" : undefined}
+                  className="aspect-square h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03] motion-reduce:transition-none"
+                />
+                {g.caption && (
+                  <p className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 to-transparent px-3 pb-2.5 pt-8 text-sm font-semibold text-white">
+                    {g.caption}
+                  </p>
+                )}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       {/* Team */}
       {catalog.barbers.length > 0 && (
         <section className="border-y border-line bg-card" aria-labelledby="team-h">
@@ -164,6 +200,30 @@ export default async function HomePage({ params }: { params: Promise<{ salon: st
               ))}
             </ul>
           </div>
+        </section>
+      )}
+
+      {/* About & amenities */}
+      {(settings.about || amenities.length > 0) && (
+        <section className="mx-auto grid max-w-6xl gap-8 px-4 pt-14 md:grid-cols-[1.2fr_1fr] md:pt-20" aria-labelledby="about-h">
+          <div>
+            <h2 id="about-h" className="display text-3xl md:text-[2.75rem]">
+              О салоне
+            </h2>
+            {settings.about && <p className="mt-6 max-w-2xl whitespace-pre-line text-lg leading-relaxed text-muted-text">{settings.about}</p>}
+          </div>
+          {amenities.length > 0 && (
+            <div>
+              <h3 className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-text">Что есть в салоне</h3>
+              <ul className="mt-4 flex flex-wrap gap-2">
+                {amenities.map((a) => (
+                  <li key={a} className="rounded-full border-2 border-ink px-4 py-2 font-semibold">
+                    {a}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </section>
       )}
 
@@ -205,6 +265,17 @@ export default async function HomePage({ params }: { params: Promise<{ salon: st
                   {settings.phone}
                 </a>
               </p>
+            )}
+            {links.length > 0 && (
+              <ul className="mt-6 flex flex-wrap gap-2">
+                {links.map((l) => (
+                  <li key={l.url}>
+                    <a className="btn btn-sm border-2 border-paper/60 text-paper hover:bg-paper/10" href={l.url} target="_blank" rel="noopener noreferrer">
+                      {l.label}
+                    </a>
+                  </li>
+                ))}
+              </ul>
             )}
             {settings.mapUrl && (
               <p className="mt-4">

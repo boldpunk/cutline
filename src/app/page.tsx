@@ -4,6 +4,7 @@ import { asc, eq } from "drizzle-orm";
 import { getDb } from "@/lib/db/client";
 import { salons } from "@/lib/db/schema";
 import { env } from "@/lib/server/env";
+import { demoLogin } from "./staff/actions";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
@@ -16,6 +17,8 @@ const FEATURES: [string, string][] = [
   ["Без регистрации для клиента", "Имя и телефон — и запись готова. Перенос и отмена по личной ссылке."],
   ["Кабинет для вас и мастеров", "Календарь на день и неделю, записи по телефону, отметки визитов, журнал изменений."],
   ["Поиск, который понимает", "Клиент находит услугу даже с опечаткой или в английской раскладке."],
+  ["Портфолио работ", "Фейды, бороды, детские стрижки — клиенты выбирают барбершоп глазами."],
+  ["Уровни мастеров", "Барбер, топ, бренд — у каждого своя цена, клиент видит её до записи."],
 ];
 
 export default async function PlatformHome() {
@@ -26,6 +29,7 @@ export default async function PlatformHome() {
     .orderBy(asc(salons.name))
     .limit(24);
   const host = new URL(env.appUrl).host;
+  const hasDemo = live.some((s) => s.slug === "demo" && s.mode === "demo");
 
   return (
     <div data-salon-theme="pole" className="min-h-dvh bg-paper text-ink">
@@ -67,6 +71,48 @@ export default async function PlatformHome() {
             </div>
           </div>
         </section>
+
+        {hasDemo && (
+          <section className="mx-auto max-w-6xl px-4 pt-16 md:pt-20" aria-labelledby="tour-h">
+            <h2 id="tour-h" className="display text-3xl md:text-4xl">
+              Демо за две минуты
+            </h2>
+            <div className="mt-8 grid gap-4 md:grid-cols-2">
+              <div className="rounded-2xl border-2 border-ink bg-card p-6">
+                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-text">Глазами клиента</p>
+                <h3 className="display mt-3 text-2xl">Найти время и записаться</h3>
+                <p className="mt-2 text-muted-text">Страница салона: прайс, мастера, работы. Запись за четыре шага, перенос по ссылке.</p>
+                <div className="mt-5 flex flex-wrap gap-2">
+                  <Link href="/demo" className="btn btn-dark">
+                    Открыть страницу салона
+                  </Link>
+                  <Link href="/demo/book" className="btn btn-ghost">
+                    Сразу к записи
+                  </Link>
+                </div>
+              </div>
+              <div className="on-dark rounded-2xl bg-ink p-6 text-paper">
+                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-highlight">Глазами барбера</p>
+                <h3 className="display mt-3 text-2xl">Кабинет без пароля</h3>
+                <p className="mt-2 text-paper/80">Календарь, записи, график, услуги, работы. Данные вымышленные — можно нажимать всё.</p>
+                <div className="mt-5 flex flex-wrap gap-2">
+                  <form action={demoLogin}>
+                    <input type="hidden" name="role" value="admin" />
+                    <button type="submit" className="btn btn-primary">
+                      Войти как администратор
+                    </button>
+                  </form>
+                  <form action={demoLogin}>
+                    <input type="hidden" name="role" value="barber" />
+                    <button type="submit" className="btn border-2 border-paper/50 text-paper hover:bg-paper/10">
+                      Как мастер
+                    </button>
+                  </form>
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
 
         <section className="mx-auto max-w-6xl px-4 py-16 md:py-20" aria-labelledby="how-h">
           <h2 id="how-h" className="display text-3xl md:text-4xl">

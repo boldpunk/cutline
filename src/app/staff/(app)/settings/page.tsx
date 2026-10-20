@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { eq, sql } from "drizzle-orm";
 import { HeroPhotoForm, SettingsForm } from "@/components/staff/SettingsForm";
+import { AMENITIES, type AmenityKey } from "@/lib/amenities";
 import { getDb } from "@/lib/db/client";
 import { bookings } from "@/lib/db/schema";
 import { getSalon } from "@/lib/server/settings";
@@ -39,6 +40,7 @@ export default async function SettingsPage() {
           mapUrl: s.mapUrl ?? "",
           phone: s.phone ?? "",
           socials: s.socials,
+          amenities: s.amenities.filter((a): a is AmenityKey => a in AMENITIES),
           timezone: s.timezone,
           slotStepMin: s.slotStepMin,
           minLeadMin: s.minLeadMin,
